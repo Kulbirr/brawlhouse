@@ -66,6 +66,10 @@ export default function ArenaPage() {
   const incomingRef = useRef<{ fighters: WsFighter[] } | null>(null);
   const logStartRef = useRef<number>(Date.now());
   const poolTotalRef = useRef<number | null>(null);
+  /* The WS message closure is registered once per battle; the registry may
+     load later, so name lookups inside handlers must use the latest. */
+  const fighterNameRef = useRef(fighterName);
+  fighterNameRef.current = fighterName;
 
   const [battles, setBattles] = useState<BattleSummary[]>([]);
   const [battle, setBattle] = useState<BattleSummary | null>(null);
@@ -74,7 +78,7 @@ export default function ArenaPage() {
   const [tick, setTick] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [done, setDone] = useState(false);
-  const [winner, setWinner] = useState<{ name: string; draw: boolean } | null>(
+  const [winner, setWinner] = useState<{ regId: string; draw: boolean } | null>(
     null,
   );
   const [fighters, setFighters] = useState<WsFighter[]>([]);
@@ -345,20 +349,17 @@ export default function ArenaPage() {
           setDone(true);
           setNote('');
           const res = msg.result;
-          const wName = fighterName(regIdOf(res.winner || ''));
-          setWinner({ name: wName, draw: !!res.draw });
+          const wReg = regIdOf(res.winner || '');
+          const wName = fighterNameRef.current(wReg);
+          setWinner({ regId: wReg, draw: !!res.draw });
           if (!res.draw && res.winner) rr?.spotlight(res.winner);
           pushCombat(
-            res.draw
-              ? 'Battle over — DRAW'
-              : `Battle over — ${fighterName(regIdOf(res.winner || ''))} wins`,
+            res.draw ? 'Battle over — DRAW' : `Battle over — ${wName} wins`,
             'END',
             'end',
           );
           pushTicker(
-            res.draw
-              ? 'Battle over — DRAW'
-              : `${fighterName(regIdOf(res.winner || ''))} wins the battle`,
+            res.draw ? 'Battle over — DRAW' : `${wName} wins the battle`,
           );
           void refreshPicker();
         }
@@ -565,7 +566,7 @@ export default function ArenaPage() {
               ref={canvasRef}
               style={{ width: '100%', height: 'auto', display: 'block' }}
             />
-            {fighters.length > 0 && !empty && (
+            {fighters.length > 0 && !empty && !winner && (
               <div className="hp-overlay">
                 {fighters.map((f) => {
                   const pct = Math.max(0, Math.min(100, f.hp));
@@ -619,7 +620,7 @@ export default function ArenaPage() {
                   {winner.draw ? 'BATTLE OVER' : 'WINNER'}
                 </div>
                 <div className="winner-name">
-                  {winner.draw ? 'DRAW' : winner.name}
+                  {winner.draw ? 'DRAW' : fighterName(winner.regId)}
                 </div>
                 <div className="winner-hint">TAP TO DISMISS</div>
               </div>
