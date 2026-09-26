@@ -965,6 +965,24 @@ a { color: var(--lime); }
 .hp-bar > div { height: 100%; border-radius: 4px; transition: width 0.25s; box-shadow: 0 0 8px currentColor; }
 .hp-num { font-size: 11px; color: var(--muted); }
 
+/* On phones the HP chips must stay a slim strip, not cover the arena */
+@media (max-width: 640px) {
+  .hp-overlay {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+  .hp-chip {
+    gap: 6px;
+    padding: 3px 7px;
+    border-radius: 6px;
+  }
+  .hp-name { font-size: 9px; letter-spacing: 0.5px; }
+  .hp-bar { width: 48px; height: 5px; }
+  .hp-num { display: none; }
+}
+
 /* ---- subline + event ticker ---- */
 .arena-subline {
   font-size: 12px;
