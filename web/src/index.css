@@ -451,6 +451,49 @@ a { color: var(--lime); }
 .result-elim { list-style: none; padding: 0; margin: 6px 0; color: var(--muted); font-size: 13px; }
 .result-elim li { padding: 2px 0; font-family: var(--font-mono); }
 
+@keyframes winner-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Winner moment: light top-anchored banner so the victor's walk to the
+ * middle of the arena stays visible underneath. Tap to dismiss. */
+.winner-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 7%;
+  text-align: center;
+  cursor: pointer;
+  background: linear-gradient(to bottom, rgba(4, 5, 8, 0.6), transparent 42%);
+  animation: winner-fade 0.45s ease-out;
+}
+.winner-kicker {
+  font-size: 13px;
+  letter-spacing: 6px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.winner-name {
+  margin-top: 6px;
+  font-size: 58px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--lime);
+  text-shadow: 0 0 44px rgba(182, 255, 46, 0.75), 0 2px 0 rgba(0, 0, 0, 0.6);
+  animation: winner-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.winner-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--dim);
+}
+
 .arena-notes { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 20px; }
 
 .side-stack { display: flex; flex-direction: column; gap: 14px; }

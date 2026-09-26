@@ -74,6 +74,9 @@ export default function ArenaPage() {
   const [tick, setTick] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [done, setDone] = useState(false);
+  const [winner, setWinner] = useState<{ name: string; draw: boolean } | null>(
+    null,
+  );
   const [fighters, setFighters] = useState<WsFighter[]>([]);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [poolStart, setPoolStart] = useState<number | null>(null);
@@ -248,6 +251,7 @@ export default function ArenaPage() {
       setPool(null);
       setPoolStart(null);
       setDone(false);
+      setWinner(null);
       setTick(null);
       setEmpty(false);
       setNote('Connecting…');
@@ -341,6 +345,9 @@ export default function ArenaPage() {
           setDone(true);
           setNote('');
           const res = msg.result;
+          const wName = fighterName(regIdOf(res.winner || ''));
+          setWinner({ name: wName, draw: !!res.draw });
+          if (!res.draw && res.winner) rr?.spotlight(res.winner);
           pushCombat(
             res.draw
               ? 'Battle over — DRAW'
@@ -598,6 +605,23 @@ export default function ArenaPage() {
                   </p>
                   <p>Place your bets — the fight starts when the countdown hits zero.</p>
                 </div>
+              </div>
+            )}
+            {winner && !empty && (
+              <div
+                className="winner-overlay"
+                onClick={() => {
+                  setWinner(null);
+                  rendererRef.current?.spotlight(null);
+                }}
+              >
+                <div className="winner-kicker">
+                  {winner.draw ? 'BATTLE OVER' : 'WINNER'}
+                </div>
+                <div className="winner-name">
+                  {winner.draw ? 'DRAW' : winner.name}
+                </div>
+                <div className="winner-hint">TAP TO DISMISS</div>
               </div>
             )}
           </div>

@@ -56,6 +56,19 @@ export class ArenaRenderer {
   private dashPrev = new Map<string, number>();
   private shake = 0;
 
+  // winner spotlight: registry id of the victor, gliding to arena center
+  private spotId: string | null = null;
+  private spotX: number | null = null;
+  private spotY: number | null = null;
+
+  /** Crown the winner: their bot glides to the middle of the arena under
+   * a spotlight ring. Pass null to clear. */
+  spotlight(id: string | null) {
+    this.spotId = id ? regIdOf(id) : null;
+    this.spotX = null;
+    this.spotY = null;
+  }
+
   constructor(canvas: HTMLCanvasElement, events?: RendererEvents) {
     this.events = events || {};
     const ctx = canvas.getContext('2d');
@@ -89,6 +102,9 @@ export class ArenaRenderer {
     this.arenaSize = 1000;
     this.hpMax = 100;
     this.shake = 0;
+    this.spotId = null;
+    this.spotX = null;
+    this.spotY = null;
   }
 
   pushSnapshot(snap: WsSnapshot) {
@@ -291,7 +307,47 @@ export class ArenaRenderer {
     const prevF = new Map((this.prev?.fighters || []).map((f) => [f.id, f]));
     for (const f of this.cur.fighters) {
       const q = prevF.get(f.id);
-      this.drawFighter(ctx, X, Y, k, q ? lerp(q.x, f.x) : f.x, q ? lerp(q.y, f.y) : f.y, f);
+      let fx = q ? lerp(q.x, f.x) : f.x;
+      let fy = q ? lerp(q.y, f.y) : f.y;
+      if (this.spotId && regIdOf(f.id) === this.spotId && f.alive) {
+        // winner's walk: glide to the middle of the arena
+        const cx = this.arenaSize / 2;
+        const cy = this.arenaSize / 2;
+        if (this.spotX === null || this.spotY === null) {
+          this.spotX = fx;
+          this.spotY = fy;
+        }
+        this.spotX += (cx - this.spotX) * 0.06;
+        this.spotY += (cy - this.spotY) * 0.06;
+        fx = this.spotX;
+        fy = this.spotY;
+      }
+      this.drawFighter(ctx, X, Y, k, fx, fy, f);
+    }
+
+    // spotlight ring under the winner
+    if (this.spotId && this.spotX !== null && this.spotY !== null) {
+      const wf = this.cur.fighters.find((f) => regIdOf(f.id) === this.spotId);
+      const color = wf ? fighterColor(regIdOf(wf.id)) : '#b6ff2e';
+      const pulse = 0.5 + 0.5 * Math.sin(now / 280);
+      const sx = X(this.spotX);
+      const sy = Y(this.spotY);
+      ctx.save();
+      const glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, 90 * k + 46 * pulse);
+      glow.addColorStop(0, 'rgba(182,255,46,0.20)');
+      glow.addColorStop(1, 'rgba(182,255,46,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 90 * k + 46 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 16 + 14 * pulse;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 34 * k + 10 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     this.updateParticles(ctx, X, Y, now);
