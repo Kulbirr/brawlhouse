@@ -26,6 +26,24 @@ def temp_app():
 
 class BackendTest(unittest.TestCase):
     # ------------------------------------------------------------- settings
+    def test_health_reports_scheduler_status(self):
+        # /health must expose scheduler diagnostics so a dead scheduler
+        # is distinguishable from a healthy idle one.
+        with temp_app() as app:
+            with TestClient(app) as c:
+                r = c.get("/health")
+                self.assertEqual(r.status_code, 200)
+                body = r.json()
+                self.assertTrue(body["ok"])
+                sched = body["scheduler"]
+                for key in ("thread_alive", "tick_seconds", "last_tick_at",
+                            "last_outcome", "last_error", "battle_live",
+                            "official_last_slot"):
+                    self.assertIn(key, sched)
+                # tests don't start the background thread
+                self.assertFalse(sched["thread_alive"])
+                self.assertEqual(sched["last_outcome"], "never_ticked")
+
     def test_settings_public_hides_private(self):
         with temp_app() as app:
             with TestClient(app) as c:

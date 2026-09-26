@@ -12,15 +12,19 @@ created, and unpaid (pending) entries are never drawn.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend import ft_economy  # noqa: E402
+
+log = logging.getLogger("brawlhouse.scheduler")
 
 
 class OfficialScheduler(threading.Thread):
@@ -35,9 +39,23 @@ class OfficialScheduler(threading.Thread):
         self.engine_cfg = engine_cfg
         self.tick_seconds = tick_seconds
         self._stop_event = threading.Event()
+        # Observability: the run() loop used to swallow every tick
+        # exception silently, which made a dead scheduler
+        # indistinguishable from a healthy idle one (the public countdown
+        # kept ticking while no battle ever started). The last tick's
+        # timing, outcome, and error are now recorded and exposed via
+        # status() for /health.
+        self.last_tick_at: float | None = None
+        self.last_outcome: str = "never_ticked"
+        self.last_error: str | None = None
 
     def stop(self) -> None:
         self._stop_event.set()
+
+    def _record_tick_error(self, exc: BaseException) -> None:
+        self.last_error = f"{type(exc).__name__}: {exc}"
+        self.last_outcome = "error"
+        log.exception("official scheduler tick failed")
 
     def run(self) -> None:
         first = True
@@ -46,8 +64,10 @@ class OfficialScheduler(threading.Thread):
                 # The first tick fires immediately so the arena comes alive
                 # on boot instead of idling until the next slot boundary.
                 self.tick(force=first)
-            except Exception:
-                pass  # the scheduler must never die on a bad tick
+            except Exception as exc:
+                # The scheduler must never die on a bad tick — but it must
+                # never go silent either.
+                self._record_tick_error(exc)
             first = False
             self._stop_event.wait(self.tick_seconds)
 
@@ -57,6 +77,7 @@ class OfficialScheduler(threading.Thread):
         (the admin fallback endpoint); the live loop never needs it."""
         from backend import ft_economy
 
+        self.last_tick_at = time.time()
         # Season progression rides on the scheduler: an expired season is
         # rolled over (standings paid out) before the next battle is drawn.
         try:
@@ -68,8 +89,10 @@ class OfficialScheduler(threading.Thread):
         now = time.time()
         slot_id = int(now) // slot
         if self.db.kv_get("official_last_slot") == str(slot_id):
+            self.last_outcome = "skipped:slot_already_ran"
             return None  # already ran this slot
         if self.runner.any_live():
+            self.last_outcome = "skipped:battle_live"
             return None  # wait for the live fight to finish
         # No boundary gate: once the slot's boundary has passed and its
         # battle hasn't run, the next tick starts it. A delayed tick
@@ -82,4 +105,30 @@ class OfficialScheduler(threading.Thread):
         # Mark the slot only after the battle exists, so a failure here
         # retries on the next tick instead of swallowing the slot.
         self.db.kv_set("official_last_slot", str(slot_id))
+        self.last_outcome = f"started:{live.id}"
+        self.last_error = None  # a good tick clears a past error
         return live
+
+    def status(self) -> dict:
+        """Point-in-time scheduler diagnostics, exposed via /health."""
+        try:
+            last_slot = self.db.kv_get("official_last_slot")
+        except Exception:
+            last_slot = None
+        try:
+            battle_live = self.runner.any_live()
+        except Exception:
+            battle_live = None
+        return {
+            "thread_alive": self.is_alive(),
+            "tick_seconds": self.tick_seconds,
+            "last_tick_at": (
+                datetime.fromtimestamp(
+                    self.last_tick_at, tz=timezone.utc).isoformat()
+                if self.last_tick_at else None
+            ),
+            "last_outcome": self.last_outcome,
+            "last_error": self.last_error,
+            "battle_live": battle_live,
+            "official_last_slot": last_slot,
+        }

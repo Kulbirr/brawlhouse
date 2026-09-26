@@ -151,15 +151,20 @@ class BattleRunner:
     def _run(self, live: LiveBattle) -> None:
         # Honor the betting window: wait for the deadline before the engine
         # starts. Sleeps in short chunks so a shutdown is never stuck long.
-        if live.betting_deadline is not None:
-            while True:
-                remaining = live.betting_deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                time.sleep(min(remaining, 0.5))
-        self.db.mark_started(live.id)
+        # Everything sits inside the try so the finally below ALWAYS runs:
+        # a failure before the engine (betting wait, mark_started) used to
+        # skip it, leaving the battle in _live with finished unset — the
+        # scheduler then waited on a dead battle forever and no new
+        # official battle ever started.
         start = time.monotonic()
         try:
+            if live.betting_deadline is not None:
+                while True:
+                    remaining = live.betting_deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    time.sleep(min(remaining, 0.5))
+            self.db.mark_started(live.id)
             b = live.battle
             live.snapshots.append(b.snapshot())  # tick 0
             while not b.is_over():

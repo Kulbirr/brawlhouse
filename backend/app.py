@@ -229,7 +229,7 @@ def create_app(data_dir: str | Path | None = None,
     # ---------------------------------------------------------------- routes
     @app.get("/health")
     def health():
-        return {"ok": True}
+        return {"ok": True, "scheduler": scheduler.status()}
 
     # -------------------------------------------------------------- settings
     @app.get("/api/settings")

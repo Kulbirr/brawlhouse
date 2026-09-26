@@ -511,6 +511,57 @@ class OfficialBattleTest(unittest.TestCase):
             # same slot: no second battle
             self.assertIsNone(sched.tick(force=True))
 
+    def test_scheduler_records_tick_error_and_status(self):
+        # A failing tick must be recorded and visible via status()
+        # instead of vanishing silently.
+        with tempfile.TemporaryDirectory() as tmp:
+            db, settings, runner, cfg = self._runner_env(tmp)
+            sched = OfficialScheduler(db, runner, settings, cfg)
+            sched._record_tick_error(RuntimeError("boom"))
+            self.assertEqual(sched.last_outcome, "error")
+            self.assertEqual(sched.last_error, "RuntimeError: boom")
+            st = sched.status()
+            self.assertEqual(st["last_error"], "RuntimeError: boom")
+            self.assertEqual(st["last_outcome"], "error")
+            self.assertFalse(st["thread_alive"])
+            self.assertIsNone(st["last_tick_at"])
+
+    def test_scheduler_status_after_healthy_tick(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db, settings, runner, cfg = self._runner_env(tmp)
+            sched = OfficialScheduler(db, runner, settings, cfg)
+            live = sched.tick(force=True)
+            self.assertIsNotNone(live)
+            st = sched.status()
+            self.assertTrue(st["last_outcome"].startswith("started:"))
+            self.assertIsNone(st["last_error"])
+            self.assertIsNotNone(st["last_tick_at"])
+            self.assertFalse(st["battle_live"] is None)
+            self.assertTrue(live.finished.wait(30))
+
+    def test_battle_thread_cleans_up_when_mark_started_fails(self):
+        # A failure before the engine (here: mark_started raising) must
+        # not leave the battle stuck in _live with finished unset — the
+        # scheduler would otherwise wait on a dead battle forever and no
+        # new official battle would ever start.
+        with tempfile.TemporaryDirectory() as tmp:
+            db, settings, runner, cfg = self._runner_env(tmp)
+            real_mark_started = db.mark_started
+
+            def boom(_battle_id):
+                raise RuntimeError("db exploded")
+
+            db.mark_started = boom
+            try:
+                live = runner.create(
+                    ["iron-1", "hawk-2"], seed=3, exhibition=False,
+                    playback_speed=1.0, engine_cfg=cfg, hire_fee_sol=0.1)
+                self.assertTrue(live.finished.wait(15))
+                self.assertIsNone(runner.get_live(live.id))
+                self.assertFalse(runner.any_live())
+            finally:
+                db.mark_started = real_mark_started
+
     def test_scheduler_tick_fires_late_instead_of_skipping_slot(self):
         # If the boundary tick is missed (thread jitter, a swallowed
         # error), the slot's battle must start on the next tick — the
