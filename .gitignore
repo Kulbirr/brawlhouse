@@ -8,6 +8,7 @@ venv/
 # Secrets - never commit these (future phases store keys/tokens here)
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 
