@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   api,
   type BattleSummary,
@@ -28,7 +28,6 @@ import RecentEliminations from '../components/RecentEliminations';
 import HirePanel from '../components/HirePanel';
 import BettingPanel from '../components/BettingPanel';
 import ChatPanel from '../components/ChatPanel';
-import NewBattleModal from '../components/NewBattleModal';
 
 interface CombatRow {
   id: number;
@@ -53,6 +52,7 @@ const fmtClock = (since: number): string => {
 
 export default function ArenaPage() {
   const { battleId } = useParams<{ battleId?: string }>();
+  const navigate = useNavigate();
   const { fighterName, settings } = useApp();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,7 +81,6 @@ export default function ArenaPage() {
   const [elims, setElims] = useState<ElimEvent[]>([]);
   const [tickerItems, setTickerItems] = useState<string[]>([]);
   const [wsChat, setWsChat] = useState<{ msg: ChatMessage; seq: number } | null>(null);
-  const [showModal, setShowModal] = useState(false);
   /* Betting window: battle created but engine not started yet. */
   const [pregame, setPregame] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -421,6 +420,17 @@ export default function ArenaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleId]);
 
+  /* No manual battle creation: always show the newest open/running
+     battle (falling back to the latest finished one) when the route
+     has no battle selected. */
+  useEffect(() => {
+    if (battleId || battles.length === 0) return;
+    const current =
+      battles.find((b) => b.status === 'open' || b.status === 'running') ||
+      battles[0];
+    navigate(`/arena/${current.id}`, { replace: true });
+  }, [battles, battleId, navigate]);
+
   /* keep queue + hires fresh while watching */
   useEffect(() => {
     const t = setInterval(() => void refreshPicker(), 15000);
@@ -490,7 +500,6 @@ export default function ArenaPage() {
             battles={battles}
             selectedId={battleId || null}
             liveTick={tick}
-            onNewBattle={() => setShowModal(true)}
           />
           <LiveBets battleId={battleId || null} />
         </div>
@@ -524,11 +533,6 @@ export default function ArenaPage() {
                 {tick !== null && <span className="arena-tick">tick {tick}</span>}
               </>
             )}
-            <div style={{ marginLeft: 'auto' }}>
-              <button className="btn btn-small" onClick={() => setShowModal(true)}>
-                + New battle
-              </button>
-            </div>
           </div>
 
           <div className="arena-canvas-wrap">
@@ -563,10 +567,7 @@ export default function ArenaPage() {
               <div className="arena-empty">
                 <div>
                   <p style={{ fontSize: 18, color: 'var(--text)' }}>No battle selected.</p>
-                  <p>Pick a live fight or a replay from the queue — or start a fresh one.</p>
-                  <button className="btn" onClick={() => setShowModal(true)}>
-                    Start a battle
-                  </button>
+                  <p>Pick a live fight or a replay from the queue.</p>
                 </div>
               </div>
             )}
@@ -727,7 +728,6 @@ export default function ArenaPage() {
         </div>
       </div>
 
-      {showModal && <NewBattleModal onClose={() => setShowModal(false)} />}
     </div>
   );
 }

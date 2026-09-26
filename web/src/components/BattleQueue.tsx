@@ -80,14 +80,15 @@ export default function BattleQueue({
   battles,
   selectedId,
   liveTick,
-  onNewBattle,
 }: {
   battles: BattleSummary[];
   selectedId: string | null;
   liveTick: number | null;
-  onNewBattle: () => void;
 }) {
-  const live = battles.filter((b) => b.status === 'running');
+  // 'open' = betting window before the engine starts; still the live card.
+  const live = battles.filter(
+    (b) => b.status === 'running' || b.status === 'open',
+  );
   const recent = battles.filter((b) => b.status === 'finished').slice(0, 6);
   // Show the selected battle first when it's live, otherwise the newest live.
   const liveCard =
@@ -107,12 +108,9 @@ export default function BattleQueue({
 
       <div className="section-label">Queued</div>
       <div className="queue-empty">
-        <p className="muted small" style={{ margin: '0 0 8px' }}>
-          No battles queued.
+        <p className="muted small" style={{ margin: 0 }}>
+          Official battles start automatically — no need to queue one.
         </p>
-        <button className="btn btn-small btn-ghost" onClick={onNewBattle}>
-          Queue a battle
-        </button>
       </div>
 
       <div className="section-label">Recent</div>
