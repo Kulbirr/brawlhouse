@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin</title>
+<script>
+// Private admin entry point. The admin token lives in sessionStorage and is
+// only ever sent as the X-Admin-Token request header, never in a URL.
+// Hand off to the SPA.
+if (sessionStorage.getItem("aa_admin_token") === null) {
+  location.replace("/#/admin");
+} else {
+  location.replace("/#/admin");
+}
+</script>
+</head>
+<body></body>
+</html>

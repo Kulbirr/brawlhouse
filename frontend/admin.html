@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin Panel</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+/* Admin-panel extras. In-house page: not linked from any public nav,
+   noindex above, every call authenticated with X-Admin-Token. */
+
+.lock-screen {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.lock-screen[hidden] { display: none; }
+.lock-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 28px; width: 100%; max-width: 400px;
+}
+.lock-card h1 { margin: 0 0 6px; font-size: 22px; }
+.lock-error {
+  background: #3a1420; border: 1px solid var(--bad); color: #ffb3c1;
+  border-radius: 8px; padding: 10px; font-size: 13px; margin: 0 0 12px;
+}
+.lock-error[hidden] { display: none; }
+
+.admin-topbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 20px; background: var(--bg2);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 50;
+}
+.admin-topbar h1 { margin: 0; font-size: 18px; letter-spacing: 1px; }
+.inhouse-badge {
+  font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+  background: #2a0f16; color: #ff8fa3; border: 1px solid var(--bad);
+  padding: 4px 12px; border-radius: 20px;
+}
+.section { margin-bottom: 18px; }
+.section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.section-head h2 { margin: 0; font-size: 17px; }
+.helper { color: var(--muted); font-size: 13px; margin: 6px 0 12px; max-width: 760px; }
+.helper code { color: var(--text); }
+
+.env-badge {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+  background: #2b220e; color: var(--warn); border: 1px solid var(--warn);
+  padding: 2px 8px; border-radius: 12px; margin-left: 8px; white-space: nowrap;
+}
+
+.sanity-line {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 14px; font-size: 14px; margin: 12px 0;
+}
+.sanity-line b { color: var(--good); font-variant-numeric: tabular-nums; }
+.sanity-warn { color: var(--warn); font-weight: 700; }
+
+/* big unmistakable toggle */
+.big-toggle-row {
+  display: flex; align-items: center; gap: 18px;
+  background: var(--bg2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; margin: 12px 0;
+}
+.big-toggle-row .state { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+.big-toggle-row .state.on { color: var(--good); }
+.big-toggle-row .state.off { color: var(--warn); }
+.switch { position: relative; display: inline-block; width: 76px; height: 40px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: #3a2b10; border: 2px solid var(--warn); border-radius: 40px;
+  transition: 0.2s;
+}
+.slider:before {
+  position: absolute; content: ""; height: 28px; width: 28px;
+  left: 4px; bottom: 4px; background: var(--warn); border-radius: 50%; transition: 0.2s;
+}
+.switch input:checked + .slider { background: #0f2e1c; border-color: var(--good); }
+.switch input:checked + .slider:before { transform: translateX(36px); background: var(--good); }
+
+/* scary confirm modal */
+.modal.scary { border: 2px solid var(--bad); max-width: 520px; }
+.modal.scary h2 { color: var(--bad); }
+.scary-warn {
+  background: #3a1420; border: 1px solid var(--bad); border-radius: 8px;
+  padding: 12px; font-size: 13.5px; line-height: 1.5; margin: 0 0 12px;
+}
+.btn-danger { background: linear-gradient(135deg, #ff5470, #b3123a); color: #fff; }
+
+.status-bar {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 300; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  background: #10231a; border: 1px solid var(--good); color: var(--good);
+  max-width: 90vw;
+}
+.status-bar[hidden] { display: none; }
+.status-bar.error { background: #3a1420; border-color: var(--bad); color: #ffb3c1; }
+
+.fighter-edit-grid { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; align-items: start; }
+.fighter-edit-grid .fid { font-weight: 700; color: var(--accent); font-size: 13px; padding-top: 8px; }
+.fighter-edit-grid textarea { resize: vertical; min-height: 44px; }
+.fighter-record-line { color: var(--muted); font-size: 12.5px; padding-top: 8px; white-space: nowrap; }
+
+.danger-panel { border: 2px solid var(--bad); }
+.danger-panel h2 { color: var(--bad); }
+.danger-panel ul { margin: 8px 0; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--muted); }
+.danger-panel ul b { color: var(--text); }
+
+.stat-note { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+</style>
+</head>
+<body>
+
+<div id="status" class="status-bar" hidden></div>
+
+<!-- ================= TOKEN GATE ================= -->
+<div id="lock-screen" class="lock-screen">
+  <div class="lock-card">
+    <h1>Admin panel</h1>
+    <p class="muted small">In-house only. This page is not linked from any public navigation.</p>
+    <p id="lock-error" class="lock-error" hidden></p>
+    <form id="lock-form">
+      <label class="field"><span>Admin token</span>
+        <input id="token-input" type="password" autocomplete="off"
+               placeholder="ADMIN_TOKEN from the server .env" aria-label="Admin token">
+      </label>
+      <button type="submit" class="btn" style="width:100%">Unlock</button>
+    </form>
+    <p class="muted small" style="margin-top:12px">The token is kept in sessionStorage only and sent as the
+      <code>X-Admin-Token</code> header. It is never written into code, URLs, or logs.</p>
+  </div>
+</div>
+
+<!-- ================= PANEL ================= -->
+<div id="admin-root" hidden>
+  <header class="admin-topbar">
+    <h1>ADMIN PANEL</h1>
+    <span class="inhouse-badge">IN-HOUSE</span>
+    <span class="spacer"></span>
+    <button id="btn-lock" class="btn btn-ghost btn-small">Lock</button>
+  </header>
+
+  <main>
+    <!-- ============ BRANDING ============ -->
+    <section class="panel section" id="sec-branding">
+      <div class="section-head"><h2>Branding</h2></div>
+      <p class="helper">Public project identity, read from <code>GET /api/settings</code> by the site.
+        Fill these in when the project name, ticker, and token mint are decided &mdash; no code changes needed.</p>
+      <div data-field="project_name">
+        <label class="field"><span>Project name</span>
+          <input id="f-project-name" type="text" autocomplete="off" maxlength="64"></label>
+      </div>
+      <div data-field="token_ticker">
+        <label class="field"><span>Token ticker</span>
+          <input id="f-token-ticker" type="text" autocomplete="off" maxlength="16"></label>
+      </div>
+      <div data-field="token_mint">
+        <label class="field"><span>Token mint address</span>
+          <input id="f-token-mint" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="empty until the token is launched"></label>
+      </div>
+      <button id="btn-save-branding" class="btn btn-small">Save branding</button>
+    </section>
+
+    <!-- ============ FEES & ECONOMICS ============ -->
+    <section class="panel section" id="sec-fees">
+      <div class="section-head"><h2>Fees &amp; economics</h2></div>
+      <p class="helper">Every number the platform runs on. Changes apply to new hires, new bets,
+        and new buyback rounds immediately.</p>
+      <div class="admin-grid">
+        <div data-field="hire_fee_sol">
+          <label class="field"><span>Hire fee (SOL)</span>
+            <input id="f-hire-fee" type="number" step="any" min="0"></label>
+        </div>
+        <div data-field="betting_house_cut_pct">
+          <label class="field"><span>Betting house cut (%)</span>
+            <input id="f-house-cut" type="number" step="any" min="0" max="100"></label>
+        </div>
+        <div data-field="buyback_pct">
+          <label class="field"><span>Buyback share of fees (%)</span>
+            <input id="f-buyback-pct" type="number" step="any" min="0" max="100"></label>
+        </div>
+        <div data-field="team_pct">
+          <label class="field"><span>Team share of fees (%)</span>
+            <input id="f-team-pct" type="number" step="any" min="0" max="100"></label>
+        </div>
+      </div>
+      <div class="sanity-line" id="sanity-line"></div>
+      <button id="btn-save-fees" class="btn btn-small">Save fees</button>
+    </section>
+
+    <!-- ============ BUYBACK CONTROL (IN-HOUSE) ============ -->
+    <section class="panel section" id="sec-buyback">
+      <div class="section-head"><h2>Buyback control</h2><span class="inhouse-badge">IN-HOUSE</span></div>
+      <p class="helper">None of these fields ever reach the public API or the public dashboard.
+        Standing rule: public copy must say fees <b>fund</b> buybacks &mdash; never promise
+        real-time auto-burn.</p>
+
+      <div class="big-toggle-row">
+        <label class="switch" aria-label="Buybacks enabled">
+          <input id="f-buyback-enabled" type="checkbox">
+          <span class="slider"></span>
+        </label>
+        <div>
+          <div class="state off" id="buyback-state-label">BUYBACKS PAUSED</div>
+          <div class="muted small">The in-house pause switch. When off, fees keep accumulating
+            in the treasury untouched and the buyback bot exits without spending anything.</div>
+        </div>
+      </div>
+
+      <div class="admin-grid">
+        <div data-field="buyback_interval_minutes">
+          <label class="field"><span>Buyback interval (minutes)</span>
+            <input id="f-buyback-interval" type="number" step="1" min="1"></label>
+        </div>
+        <div data-field="buyback_hot_sol_cap">
+          <label class="field"><span>Hot wallet SOL cap</span>
+            <input id="f-hot-cap" type="number" step="any" min="0"></label>
+        </div>
+        <div data-field="buyback_mock_rate">
+          <label class="field"><span>Mock swap rate (tokens per SOL)</span>
+            <input id="f-mock-rate" type="number" step="any" min="0"></label>
+        </div>
+      </div>
+
+      <label class="checkbox-row" data-field="buyback_live">
+        <input id="f-buyback-live" type="checkbox">
+        <span><b>Live buybacks (REAL MONEY)</b> &mdash; the bot swaps SOL for the token via
+          Jupiter and burns on-chain with the treasury hot wallet key.</span>
+      </label>
+      <label class="checkbox-row" data-field="team_sweep_enabled">
+        <input id="f-team-sweep" type="checkbox">
+        <span><b>Team sweep to TEAM_WALLET</b> &mdash; each round's team share is sent on-chain.
+          Off means the share is only accounted in the ledger for manual handling.</span>
+      </label>
+      <div style="margin-top:10px">
+        <button id="btn-save-buyback" class="btn btn-small">Save buyback settings</button>
+      </div>
+    </section>
+
+    <!-- ============ BETTING CONTROL ============ -->
+    <section class="panel section" id="sec-betting">
+      <div class="section-head"><h2>Betting control</h2><span class="inhouse-badge">IN-HOUSE</span></div>
+      <p class="helper">The house cut % lives under Fees &amp; economics. This switch changes
+        how bets are settled: mock ledger credits vs real SOL escrow.</p>
+      <label class="checkbox-row" data-field="betting_live">
+        <input id="f-betting-live" type="checkbox">
+        <span><b>Live betting escrow (REAL MONEY)</b> &mdash; bettors must send SOL to the escrow
+          wallet first; payouts are real on-chain transfers. Off = mock ledger, no SOL moves.</span>
+      </label>
+      <button id="btn-save-betting" class="btn btn-small">Save betting settings</button>
+    </section>
+
+    <!-- ============ FIGHTERS ============ -->
+    <section class="panel section" id="sec-fighters">
+      <div class="section-head"><h2>Fighters</h2></div>
+      <p class="helper">Rebrand the house fighters here &mdash; name, tagline, and description are
+        overridden via the admin API and the public site picks them up immediately. No code changes.</p>
+      <div id="fighter-editors"></div>
+    </section>
+
+    <!-- ============ TREASURY OPS (READ-ONLY) ============ -->
+    <section class="panel section" id="sec-treasury">
+      <div class="section-head"><h2>Treasury ops</h2><span class="inhouse-badge">IN-HOUSE</span></div>
+      <p class="helper">Read-only. Fee collection and buyback execution are handled by the betting
+        settlement path and the buyback bot &mdash; this panel only watches.</p>
+      <div class="stat-grid" id="fee-cards"></div>
+      <h3>Recent fee events</h3>
+      <table class="table" id="fee-events-table">
+        <thead><tr><th>ID</th><th>Date</th><th>Battle</th><th>Source</th><th>Amount (SOL)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <h3>Burn history</h3>
+      <table class="table" id="burn-events-table">
+        <thead><tr><th>Date</th><th>SOL spent</th><th>Tokens bought</th><th>Tokens burned</th><th>Mode</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="stat-note" id="treasury-note"></p>
+      <button id="btn-refresh-treasury" class="btn btn-ghost btn-small">Refresh</button>
+    </section>
+
+    <!-- ============ DANGER ZONE ============ -->
+    <section class="panel section danger-panel" id="sec-danger">
+      <div class="section-head"><h2>Danger zone</h2></div>
+      <p class="helper">v1 has <b>no destructive actions and no fund-moving buttons</b> here &mdash;
+        nothing on this page moves real money. Live-money operations stay manual and owner-side:</p>
+      <ul>
+        <li><b>Funding hot wallets</b> &mdash; treasury and escrow hot wallets are topped up from the
+          cold wallet by the owner, by hand. The bot never touches the cold wallet.</li>
+        <li><b>Flipping live flags</b> &mdash; done above, behind a typed confirmation.</li>
+        <li><b>Sweeping excess hot balance</b> &mdash; if a hot wallet exceeds its cap, the owner
+          sweeps the excess to cold manually.</li>
+        <li><b>Token launch</b> &mdash; the coin is launched owner-side; the mint address is then
+          pasted into Branding above.</li>
+        <li><b>Failed payouts</b> &mdash; any live payout that fails leaves a NULL signature in the
+          ledger; handle it manually before retrying.</li>
+        <li><b>Legal review</b> &mdash; betting and buyback flows need legal review before any live flip.</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<!-- ================= SCARY CONFIRM MODAL ================= -->
+<div id="scary-modal" class="modal-backdrop" hidden>
+  <div class="modal scary">
+    <h2 id="scary-title">Confirm</h2>
+    <p class="scary-warn" id="scary-text"></p>
+    <label class="field"><span>Type <code>GO LIVE</code> to confirm</span>
+      <input id="scary-input" type="text" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="btn-row">
+      <button id="scary-cancel" class="btn btn-ghost">Cancel</button>
+      <button id="scary-confirm" class="btn btn-danger" disabled>Enable live mode</button>
+    </div>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+</body>
+</html>

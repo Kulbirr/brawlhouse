@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Secrets - never commit these (future phases store keys/tokens here)
+.env
+.env.*
+*.pem
+*.key
+
+# Phase 3 runtime data (created on first run: settings.json defaults, arena.db)
+data/
+
+# Outputs
+*.log
+/tmp/
+fight-*.json
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Frontend
+web/node_modules/
+web/dist/
+frontend/node_modules/
+frontend/dist/

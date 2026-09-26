@@ -1,0 +1,9 @@
+# Phase 1-2: engine is stdlib-only. Phase 3 adds:
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+# Test-only (FastAPI TestClient):
+httpx==0.28.1
+# Phase 5 live-escrow path ONLY (backend/escrow_live.py). Mock mode never
+# imports these; they are needed solely when betting_live is enabled.
+solana==0.36.9
+solders==0.26.0
