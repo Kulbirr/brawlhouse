@@ -194,6 +194,7 @@ export default function AdminPage() {
   const [burns, setBurns] = useState<BurnRow[]>([]);
   const [scary, setScary] = useState<{ key: string; proceed: () => void } | null>(null);
   const [scaryInput, setScaryInput] = useState('');
+  const [battleMsg, setBattleMsg] = useState('');
 
   const flash = (msg: string, isError = false) => {
     setStatus(msg);
@@ -297,6 +298,21 @@ export default function AdminPage() {
         setAuthed(false);
         setLockError('Invalid token. Enter the admin token again.');
       } else flash(`Error: ${(e as Error).message}`, true);
+    }
+  };
+
+  /* Manual fallback: force the next official battle now, for when the
+     scheduler is disabled or missed its slot. Same code path as a
+     scheduled battle, so it counts officially. */
+  const runOfficialBattle = async () => {
+    setBattleMsg('Starting…');
+    try {
+      const r = (await adminApi('/api/admin/battles/run-official', {
+        method: 'POST',
+      })) as { id: string; mode: string };
+      setBattleMsg(`Official ${r.mode || 'battle'} started: ${r.id}`);
+    } catch (e) {
+      setBattleMsg(`Could not start: ${(e as Error).message}`);
     }
   };
 
@@ -478,7 +494,21 @@ export default function AdminPage() {
         {group('05', 'FT BORN', FT_BORN,
           () => maybeScary('born_live', () => saveSettings(FT_BORN.map((f) => f.key))))}
         {group('06', 'FT OFFICIAL BATTLES', FT_BATTLES,
-          () => maybeScary('entry_live', () => saveSettings(FT_BATTLES.map((f) => f.key))))}
+          () => maybeScary('entry_live', () => saveSettings(FT_BATTLES.map((f) => f.key))),
+          <>
+            <div className="admin-subhead">MANUAL FALLBACK</div>
+            <p className="muted small" style={{ margin: '0 0 10px' }}>
+              If the scheduler ever misses its slot, force the next official
+              battle now. It draws from the FT queue exactly like a scheduled
+              battle, so it counts officially.
+            </p>
+            <button className="primary-action" onClick={runOfficialBattle}>
+              Start official battle now <span>→</span>
+            </button>
+            {battleMsg && (
+              <p className="muted small" style={{ marginTop: 8 }}>{battleMsg}</p>
+            )}
+          </>)}
         {group('07', 'FT SEASON', FT_SEASON,
           () => maybeScary('payouts_live', () => saveSettings(FT_SEASON.map((f) => f.key))))}
         {group('04', 'PROJECT IDENTITY', IDENTITY,

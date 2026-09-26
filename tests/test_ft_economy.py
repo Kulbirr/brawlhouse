@@ -551,6 +551,45 @@ class OfficialBattleTest(unittest.TestCase):
                 settings, now=boundary - 8 * 60))
 
 
+class AdminRunOfficialBattleTest(unittest.TestCase):
+    """POST /api/admin/battles/run-official: the admin fallback that
+    force-starts the next official battle when the scheduler is down."""
+
+    def test_admin_force_starts_official_battle(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                r = c.post("/api/admin/battles/run-official",
+                           headers=ADMIN_HEADERS)
+                self.assertEqual(r.status_code, 200, r.text)
+                body = r.json()
+                self.assertTrue(body["official"])
+                battle_id = body["id"]
+                rec = app.state.db.get_battle(battle_id)
+                self.assertTrue(rec["official"])
+                # A second force in the same slot is refused: no double
+                # prize pool for one slot.
+                r = c.post("/api/admin/battles/run-official",
+                           headers=ADMIN_HEADERS)
+                self.assertEqual(r.status_code, 409)
+                wait_finished(c, app, battle_id)
+                rec = app.state.db.get_battle(battle_id)
+                self.assertEqual(rec["status"], "finished")
+
+    def test_admin_force_refused_while_battle_live(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                # Occupy the runner with a manual battle first.
+                r = c.post("/api/battles",
+                           json={"fighter_ids": ["iron-1", "hawk-2"],
+                                 "seed": 11})
+                self.assertEqual(r.status_code, 202)
+                manual_id = r.json()["id"]
+                r = c.post("/api/admin/battles/run-official",
+                           headers=ADMIN_HEADERS)
+                self.assertEqual(r.status_code, 409)
+                wait_finished(c, app, manual_id)
+
+
 class SeasonTest(unittest.TestCase):
     def test_rollover_pays_top3_and_rolls_once(self):
         with temp_env() as (db, settings, tmp):

@@ -119,6 +119,9 @@ class AdminPrivacyTest(unittest.TestCase):
                           json={"tagline": "x"}).status_code, 401)
                 self.assertEqual(
                     c.get("/api/treasury/fees").status_code, 401)
+                self.assertEqual(
+                    c.post("/api/admin/battles/run-official").status_code,
+                    401)
                 # wrong token
                 bad = {"X-Admin-Token": "wrong"}
                 self.assertEqual(

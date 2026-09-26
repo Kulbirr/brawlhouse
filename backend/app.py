@@ -322,6 +322,23 @@ def create_app(data_dir: str | Path | None = None,
             "env_overridden": settings.env_overridden(),
         }
 
+    @app.post("/api/admin/battles/run-official",
+              dependencies=[Depends(require_admin)])
+    def admin_run_official_battle():
+        """Manual fallback: force-start the next official battle now, for
+        when the scheduler thread is disabled or missed its slot. Runs
+        the exact scheduler code path (season rollover, FT queue draw,
+        house fillers, prize pool), so the battle counts officially."""
+        if runner.any_live():
+            raise HTTPException(
+                409, "A battle is already live; wait for it to finish")
+        live = app.state.scheduler.tick(force=True)
+        if live is None:
+            raise HTTPException(
+                409, "This time slot already ran its official battle")
+        return {"id": live.id, "status": "open",
+                "mode": live.mode, "official": True}
+
     # -------------------------------------------------------------- fighters
     @app.get("/api/fighters")
     def list_fighters():
@@ -1029,12 +1046,18 @@ def create_app(data_dir: str | Path | None = None,
     app.mount("/", StaticFiles(directory=PROJECT_ROOT / "web" / "dist", html=True),
               name="frontend")
 
+    # Official-battle scheduler object always exists (the background
+    # thread only starts when enabled); the admin fallback endpoint
+    # below forces a battle through it.
+    engine_cfg = Config.from_env({"max_ticks": settings.get("fight_max_ticks")})
+    scheduler = OfficialScheduler(db, runner, settings, engine_cfg)
     if start_scheduler:
         # Phase 1: official battles run on a schedule in production.
-        engine_cfg = Config.from_env({"max_ticks": settings.get("fight_max_ticks")})
-        scheduler = OfficialScheduler(db, runner, settings, engine_cfg)
         scheduler.start()
-        app.state.scheduler = scheduler
+    # The scheduler object always exists on app.state so the admin
+    # fallback endpoint can force a battle even when the background
+    # thread is disabled or dead.
+    app.state.scheduler = scheduler
 
     return app
 
