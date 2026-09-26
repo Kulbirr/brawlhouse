@@ -53,8 +53,8 @@ class OfficialScheduler(threading.Thread):
 
     def tick(self, force: bool = False):
         """Start the slot's battle if due and none is live. Returns the
-        LiveBattle or None. force=True bypasses the slot-boundary gate
-        (used by tests and manual runs, never by the live loop)."""
+        LiveBattle or None. force=True is kept for tests and manual runs
+        (the admin fallback endpoint); the live loop never needs it."""
         from backend import ft_economy
 
         # Season progression rides on the scheduler: an expired season is
@@ -71,11 +71,12 @@ class OfficialScheduler(threading.Thread):
             return None  # already ran this slot
         if self.runner.any_live():
             return None  # wait for the live fight to finish
-        # Fire only near a slot boundary. On startup (or after a long
-        # pause) this skips the current slot instead of starting a battle
-        # immediately, so the public countdown always matches reality.
-        if not force and now - slot_id * slot > self.tick_seconds:
-            return None
+        # No boundary gate: once the slot's boundary has passed and its
+        # battle hasn't run, the next tick starts it. A delayed tick
+        # (thread jitter, a swallowed error on the boundary tick) used to
+        # silently skip the whole slot — the queue countdown would hit 0
+        # and nothing would happen. Now the battle just starts a few
+        # seconds late instead.
         live = ft_economy.run_official_battle(
             self.db, self.runner, self.settings, self.engine_cfg)
         # Mark the slot only after the battle exists, so a failure here

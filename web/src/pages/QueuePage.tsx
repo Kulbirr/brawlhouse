@@ -78,6 +78,13 @@ export default function QueuePage() {
               <Link className="btn" to="/my-fighters">
                 ENTER FROM MY FIGHTERS
               </Link>
+              {!next.entry_open && (
+                <p className="muted small" style={{ marginTop: 8 }}>
+                  Entry window opens {next.entry_window_minutes} minutes
+                  before the battle. Fighters you enter stay queued for the
+                  draw.
+                </p>
+              )}
             </>
           ) : (
             <p className="muted">Loading schedule…</p>

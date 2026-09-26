@@ -391,7 +391,7 @@ class EndToEndMoneyLoopTest(unittest.TestCase):
                     set(stats.keys()),
                     {"treasury_balance_sol", "total_fees_sol",
                      "total_burned_tokens", "burn_count", "token_ticker",
-                     "project_name"})
+                     "project_name", "simulated"})
                 self.assertEqual(stats["total_fees_sol"], new_fees)
                 self.assertEqual(stats["treasury_balance_sol"], 0.0)
                 self.assertEqual(stats["burn_count"], 1)

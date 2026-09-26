@@ -59,7 +59,7 @@ export default function TreasuryPage() {
     <main className="section-page">
       <div className="section-heading">
         <h1>TREASURY</h1>
-        <span>PUBLIC LEDGER</span>
+        <span>{stats?.simulated ? 'SIMULATED LEDGER' : 'PUBLIC LEDGER'}</span>
       </div>
 
       {error && <p style={{ color: 'var(--red)' }}>{error}</p>}
@@ -167,7 +167,10 @@ export default function TreasuryPage() {
         </div>
       )}
       <div className="section-footnote">
-        PUBLIC LEDGER VALUES <i /> TOKEN USE IS NOT REQUIRED TO FIGHT OR BET
+        {stats?.simulated
+          ? 'PRACTICE MODE — THESE SOL AMOUNTS ARE SIMULATED. NO REAL FUNDS MOVE UNTIL LIVE PAYMENTS ARE ENABLED IN THE ADMIN CONSOLE.'
+          : 'PUBLIC LEDGER VALUES'}{' '}
+        <i /> TOKEN USE IS NOT REQUIRED TO FIGHT OR BET
       </div>
     </main>
   );

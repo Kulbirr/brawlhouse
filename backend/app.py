@@ -909,6 +909,11 @@ def create_app(data_dir: str | Path | None = None,
         """
         totals = db.fee_totals()
         burned = db.burn_totals()
+        # Until at least one live-payment switch is on, every SOL number
+        # below is simulated practice money: no real funds move.
+        simulated = not any(bool(settings.get(k)) for k in
+                            ("betting_live", "hiring_live",
+                             "born_live", "entry_live"))
         return {
             "treasury_balance_sol": db.unallocated_fees_total(),
             "total_fees_sol": totals["total_sol"],
@@ -916,6 +921,7 @@ def create_app(data_dir: str | Path | None = None,
             "burn_count": burned["burn_count"],
             "token_ticker": settings.get("token_ticker"),
             "project_name": settings.get("project_name"),
+            "simulated": simulated,
         }
 
     @app.get("/api/treasury/burns")

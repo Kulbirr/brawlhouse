@@ -511,26 +511,28 @@ class OfficialBattleTest(unittest.TestCase):
             # same slot: no second battle
             self.assertIsNone(sched.tick(force=True))
 
-    def test_scheduler_tick_waits_for_slot_boundary(self):
-        # Without force, a mid-slot tick must not start a battle: the
-        # scheduler waits for the next boundary so the public countdown
-        # stays truthful.
+    def test_scheduler_tick_fires_late_instead_of_skipping_slot(self):
+        # If the boundary tick is missed (thread jitter, a swallowed
+        # error), the slot's battle must start on the next tick — the
+        # whole slot must never be silently skipped.
         with tempfile.TemporaryDirectory() as tmp:
             db, settings, runner, cfg = self._runner_env(tmp)
             sched = OfficialScheduler(db, runner, settings, cfg,
                                       tick_seconds=0.05)
             import time as _time
-            slot = 10 * 60
+            slot = int(settings.get("official_battle_interval_minutes")) * 60
             now = _time.time()
-            mid_slot = (int(now) // slot) * slot + slot // 2
+            late = (int(now) // slot) * slot + 45  # 45s past the boundary
             real_time = _time.time
             try:
-                _time.time = lambda: mid_slot  # noqa: E731
-                self.assertIsNone(sched.tick())
+                _time.time = lambda: late  # noqa: E731
+                live = sched.tick()
+                self.assertIsNotNone(live)
             finally:
                 _time.time = real_time
-            # ...but force still works anywhere in the slot.
-            self.assertIsNotNone(sched.tick(force=True))
+            self.assertTrue(live.finished.wait(30))
+            # same slot: no second battle
+            self.assertIsNone(sched.tick(force=True))
 
     def test_entry_window_enforced(self):
         with tempfile.TemporaryDirectory() as tmp:

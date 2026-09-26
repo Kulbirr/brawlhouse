@@ -35,7 +35,7 @@ Every FT has a unique key (`FT-0001`, …) and is tradeable on our own marketpla
 
 The arena runs itself. No human presses a button.
 
-- Every **10 minutes** (configurable) the server runs one **official battle**, alternating between two modes:
+- Every **5 minutes** (configurable) the server runs one **official battle**, alternating between two modes:
   - **Duel** — 1v1.
   - **Royale** — 4-fighter free-for-all, last one standing wins.
 - **Entry window**: 5 minutes before each battle, owners tap "Enter next battle" on a FT.

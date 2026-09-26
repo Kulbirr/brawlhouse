@@ -1156,7 +1156,7 @@ Fighters are **born**, not minted. They are called **FTs**, not NFTs.
    each battle, configurable via `entry_window_minutes`).
 3. **Official battles**: the scheduler (off by default; set
    `ARENA_OFFICIAL_SCHEDULER=1`) runs one battle every
-   `official_battle_interval_minutes` (default 10), alternating Duel (1v1)
+   `official_battle_interval_minutes` (default 5), alternating Duel (1v1)
    and Royale (4-way free-for-all). The draw is weighted random with
    longest-wait priority; short queues are filled with house fighters, who
    never take prize money. Only scheduler-created battles are official.

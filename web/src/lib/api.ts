@@ -177,6 +177,7 @@ export interface TreasuryStats {
   burn_count: number;
   token_ticker: string;
   project_name: string;
+  simulated: boolean;
 }
 
 export interface BurnRecord {

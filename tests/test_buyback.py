@@ -202,7 +202,7 @@ class TestTreasuryEndpoints(unittest.TestCase):
                 set(stats.keys()),
                 {"treasury_balance_sol", "total_fees_sol",
                  "total_burned_tokens", "burn_count", "token_ticker",
-                 "project_name"})
+                 "project_name", "simulated"})
             self.assertNotIn("buyback_enabled", stats)
             self.assertAlmostEqual(stats["total_fees_sol"], 2.5, places=9)
             self.assertAlmostEqual(stats["treasury_balance_sol"], 2.5,

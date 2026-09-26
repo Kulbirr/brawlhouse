@@ -20,6 +20,7 @@ import {
   type ChatMessage,
 } from '../lib/api';
 import { regIdOf, fmtSol, fighterColor } from '../lib/format';
+import { Countdown } from '../components/ft';
 import { useApp } from '../lib/store';
 import { ArenaRenderer } from '../arena/renderer';
 import BattleQueue from '../components/BattleQueue';
@@ -147,10 +148,21 @@ export default function ArenaPage() {
     [fighterName, pushCombat, pushTicker],
   );
 
+  const [nextStartsAt, setNextStartsAt] = useState<string | null>(null);
+
   const refreshPicker = useCallback(async () => {
     try {
       const d = await api<{ battles: BattleSummary[] }>('/api/battles?limit=30');
       setBattles(d.battles || []);
+    } catch {
+      /* ignore */
+    }
+    /* next official battle, for the status-bar countdown */
+    try {
+      const q = await api<{ next_battle: { starts_at: string } | null }>(
+        '/api/ft/queue',
+      );
+      setNextStartsAt(q.next_battle?.starts_at || null);
     } catch {
       /* ignore */
     }
@@ -532,6 +544,12 @@ export default function ArenaPage() {
                 {modeLabel && <span className="badge done">{modeLabel}</span>}
                 {tick !== null && <span className="arena-tick">tick {tick}</span>}
               </>
+            )}
+            {!live && !pregame && nextStartsAt && (
+              <span className="badge done" style={{ marginLeft: 'auto' }}>
+                NEXT BATTLE&nbsp;
+                <Countdown to={nextStartsAt} />
+              </span>
             )}
           </div>
 

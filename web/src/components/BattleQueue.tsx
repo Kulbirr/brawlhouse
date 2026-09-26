@@ -109,7 +109,8 @@ export default function BattleQueue({
       <div className="section-label">Queued</div>
       <div className="queue-empty">
         <p className="muted small" style={{ margin: 0 }}>
-          Official battles start automatically — no need to queue one.
+          Battles start on the schedule. To fight, enter your FT from the
+          Queue page.
         </p>
       </div>
 
