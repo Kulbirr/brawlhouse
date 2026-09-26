@@ -8,6 +8,7 @@ import unittest
 from contextlib import contextmanager
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 os.environ["ARENA_PLAYBACK_TICK_MS"] = "0"  # no pacing in WS replays
 
 from fastapi.testclient import TestClient  # noqa: E402

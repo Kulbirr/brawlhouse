@@ -469,7 +469,8 @@ class Database:
         )
 
     def mark_started(self, battle_id: str) -> None:
-        self._q("UPDATE battles SET started_at = ? WHERE id = ?",
+        self._q("UPDATE battles SET started_at = ?, status = 'running' "
+                "WHERE id = ?",
                 (_utcnow(), battle_id))
 
     # -------------------------------------------------------------- snapshots

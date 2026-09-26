@@ -29,6 +29,11 @@ FIELDS: dict[str, tuple[str, type, Any]] = {
     "max_bet_sol": ("ARENA_MAX_BET_SOL", float, 10.0),
     "betting_house_cut_pct": ("ARENA_BETTING_HOUSE_CUT_PCT", float, 5.0),
     "betting_live": ("ARENA_BETTING_LIVE", bool, False),
+    # Betting window: seconds between battle creation and engine start
+    # during which bets are accepted. The engine runs to completion in
+    # milliseconds, so without this window there is effectively no time
+    # to bet on a newly created battle.
+    "betting_window_sec": ("ARENA_BETTING_WINDOW_SEC", int, 60),
     "buyback_pct": ("ARENA_BUYBACK_PCT", float, 50.0),
     "team_pct": ("ARENA_TEAM_PCT", float, 50.0),
     "buyback_interval_minutes": ("ARENA_BUYBACK_INTERVAL_MINUTES", int, 60),

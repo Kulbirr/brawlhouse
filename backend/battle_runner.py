@@ -41,6 +41,9 @@ class LiveBattle:
     # Phase 1 (FT economy): scheduler-run official battles carry a prize.
     official: bool = False
     mode: str | None = None  # 'duel' | 'royale' for official battles
+    # Betting window: monotonic deadline before which the engine must not
+    # start, so spectators get a real window to place bets. None = run now.
+    betting_deadline: float | None = None
 
 
 class BattleRunner:
@@ -112,10 +115,20 @@ class BattleRunner:
             official=official,
             mode=mode,
         )
+        # Betting window: the battle sits in 'open' status so spectators can
+        # bet before the engine runs (it completes in milliseconds, so
+        # without the wait there would be no usable betting window).
+        try:
+            window = int((self.settings.get("betting_window_sec")
+                          if self.settings else 60) or 0)
+        except (TypeError, ValueError):
+            window = 60
+        if window > 0:
+            live.betting_deadline = time.monotonic() + window
         rec = {
             "id": live.id,
             "created_at": _utcnow(),
-            "status": "running",
+            "status": "open" if live.betting_deadline else "running",
             "seed": seed,
             "exhibition": 1 if exhibition else 0,
             "fighter_ids": json.dumps(engine_ids),
@@ -136,6 +149,14 @@ class BattleRunner:
 
     # ------------------------------------------------------------------- run
     def _run(self, live: LiveBattle) -> None:
+        # Honor the betting window: wait for the deadline before the engine
+        # starts. Sleeps in short chunks so a shutdown is never stuck long.
+        if live.betting_deadline is not None:
+            while True:
+                remaining = live.betting_deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                time.sleep(min(remaining, 0.5))
         self.db.mark_started(live.id)
         start = time.monotonic()
         try:

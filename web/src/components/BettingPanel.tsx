@@ -69,7 +69,7 @@ export default function BettingPanel({
   const total = pool?.total_sol || 0;
   const n = battle.fighter_ids.length;
   const sel = selected && battle.fighter_ids.includes(selected) ? selected : battle.fighter_ids[0];
-  const open = battle.status === 'running' && !done;
+  const open = (battle.status === 'open' || battle.status === 'running') && !done;
   const busy = phase === 'initiating' || phase === 'awaiting-signature' ||
     phase === 'broadcasting' || phase === 'confirming';
   const maxBet = settings?.max_bet_sol;

@@ -40,11 +40,15 @@ class OfficialScheduler(threading.Thread):
         self._stop_event.set()
 
     def run(self) -> None:
+        first = True
         while not self._stop_event.is_set():
             try:
-                self.tick()
+                # The first tick fires immediately so the arena comes alive
+                # on boot instead of idling until the next slot boundary.
+                self.tick(force=first)
             except Exception:
                 pass  # the scheduler must never die on a bad tick
+            first = False
             self._stop_event.wait(self.tick_seconds)
 
     def tick(self, force: bool = False):

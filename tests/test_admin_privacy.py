@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 
 from fastapi.testclient import TestClient  # noqa: E402
 

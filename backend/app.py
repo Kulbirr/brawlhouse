@@ -280,7 +280,8 @@ def create_app(data_dir: str | Path | None = None,
                         400, f"{key} must be between 0 and 100")
         for key, lo, hi in (("official_battle_interval_minutes", 1, 1440),
                             ("season_length_days", 1, 365),
-                            ("entry_window_minutes", 1, 1440)):
+                            ("entry_window_minutes", 1, 1440),
+                            ("betting_window_sec", 0, 3600)):
             if key in values:
                 try:
                     v = int(values[key])
@@ -973,6 +974,7 @@ def create_app(data_dir: str | Path | None = None,
             await ws.accept()
             await ws.send_json({"type": "info", "status": "live",
                                 "battle_id": battle_id,
+                                "battle_status": rec["status"],
                                 "fighter_ids": live.engine_ids})
             idx = 0
             try:
@@ -1038,9 +1040,9 @@ def create_app(data_dir: str | Path | None = None,
 
 
 # Module import must stay side-effect-light: the official-battle scheduler
-# only starts when explicitly enabled (production sets
-# ARENA_OFFICIAL_SCHEDULER=1 in the environment or .env). Tests and plain
-# imports get the app without background battles.
+# starts by default (the arena comes alive on boot) and is disabled by
+# setting ARENA_OFFICIAL_SCHEDULER=0 in the environment or .env. Tests and
+# plain imports get the app without background battles.
 load_dotenv(PROJECT_ROOT / ".env")
 app = create_app(
-    start_scheduler=os.environ.get("ARENA_OFFICIAL_SCHEDULER") == "1")
+    start_scheduler=os.environ.get("ARENA_OFFICIAL_SCHEDULER", "1") == "1")

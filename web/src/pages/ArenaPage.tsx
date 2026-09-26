@@ -53,7 +53,7 @@ const fmtClock = (since: number): string => {
 
 export default function ArenaPage() {
   const { battleId } = useParams<{ battleId?: string }>();
-  const { fighterName } = useApp();
+  const { fighterName, settings } = useApp();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<ArenaRenderer | null>(null);
@@ -82,6 +82,10 @@ export default function ArenaPage() {
   const [tickerItems, setTickerItems] = useState<string[]>([]);
   const [wsChat, setWsChat] = useState<{ msg: ChatMessage; seq: number } | null>(null);
   const [showModal, setShowModal] = useState(false);
+  /* Betting window: battle created but engine not started yet. */
+  const [pregame, setPregame] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
   const [empty, setEmpty] = useState(true);
 
   const pushCombat = useCallback(
@@ -249,6 +253,31 @@ export default function ArenaPage() {
       }
       if (seq !== seqRef.current) return;
       setBattle(meta);
+      /* Betting window: battle is open, engine starts at the deadline. */
+      if (countdownRef.current) {
+        window.clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+      setCountdown(null);
+      if (meta.status === 'open') {
+        setPregame(true);
+        const windowSec = Number(settings?.betting_window_sec) || 60;
+        const deadline = new Date(meta.created_at).getTime() + windowSec * 1000;
+        const updateCountdown = () => {
+          const remain = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+          setCountdown(remain);
+          if (remain <= 0 && countdownRef.current) {
+            window.clearInterval(countdownRef.current);
+            countdownRef.current = null;
+          }
+        };
+        updateCountdown();
+        countdownRef.current = window.setInterval(updateCountdown, 1000);
+        setModeLabel('BETS OPEN');
+        setNote('Bets are open — the fight starts when the countdown hits zero.');
+      } else {
+        setPregame(false);
+      }
       pushCombat(
         `Battle started — ${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')}${meta.exhibition ? ' (exhibition)' : ''}`,
         'START',
@@ -276,14 +305,19 @@ export default function ArenaPage() {
         const rr = rendererRef.current;
         if (msg.type === 'info') {
           const isLive = msg.status === 'live';
-          setLive(isLive);
-          setModeLabel(isLive ? 'STREAMING' : 'REPLAY');
+          const isPregame = msg.battle_status === 'open';
+          setLive(isLive && !isPregame);
+          setPregame(isPregame);
+          setModeLabel(isPregame ? 'BETS OPEN' : isLive ? 'STREAMING' : 'REPLAY');
           setNote(
-            isLive
-              ? 'Streaming live — ticks arrive as the engine runs them.'
-              : 'Replay of a finished battle, streamed from stored snapshots.',
+            isPregame
+              ? 'Bets are open — the fight starts when the countdown hits zero.'
+              : isLive
+                ? 'Streaming live — ticks arrive as the engine runs them.'
+                : 'Replay of a finished battle, streamed from stored snapshots.',
           );
         } else if (msg.type === 'snapshot') {
+          setPregame(false);
           detectCombat(prevSnapRef.current, msg.fighters, msg.tick);
           prevSnapRef.current = msg.fighters;
           incomingRef.current = msg;
@@ -315,7 +349,7 @@ export default function ArenaPage() {
         if (wsRef.current === ws) wsRef.current = null;
       };
     },
-    [fighterName, pollHires, loadPool, pushCombat, pushTicker, refreshPicker, detectCombat],
+    [fighterName, pollHires, loadPool, pushCombat, pushTicker, refreshPicker, detectCombat, settings],
   );
 
   /* renderer lifecycle — combat visuals untouched */
@@ -405,6 +439,17 @@ export default function ArenaPage() {
     const t = setInterval(() => void loadPool(battle), 5000);
     return () => clearInterval(t);
   }, [battle, loadPool]);
+
+  /* Clear the betting-window countdown when leaving the page. */
+  useEffect(
+    () => () => {
+      if (countdownRef.current) {
+        window.clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    },
+    [],
+  );
 
   /* ---------------- derived ---------------- */
 
@@ -522,6 +567,17 @@ export default function ArenaPage() {
                   <button className="btn" onClick={() => setShowModal(true)}>
                     Start a battle
                   </button>
+                </div>
+              </div>
+            )}
+            {pregame && !empty && (
+              <div className="arena-empty">
+                <div>
+                  <p style={{ fontSize: 22, color: 'var(--lime, #b6ff2e)' }}>BETS OPEN</p>
+                  <p className="mono" style={{ fontSize: 34 }}>
+                    {countdown !== null ? `${countdown}s` : '—'}
+                  </p>
+                  <p>Place your bets — the fight starts when the countdown hits zero.</p>
                 </div>
               </div>
             )}

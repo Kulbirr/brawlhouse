@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 os.environ["ARENA_PLAYBACK_TICK_MS"] = "0"  # no pacing in WS replays
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -220,6 +221,47 @@ class BettingApiTest(unittest.TestCase):
                 self.assertEqual(len(bets), 1)
                 self.assertEqual(bets[0]["wallet"], "WA")
                 wait_finished(c, app, battle_id)
+
+
+class BettingWindowTest(unittest.TestCase):
+    """A new battle sits in 'open' status for betting_window_sec so
+    spectators get a real window to bet before the engine runs (it
+    completes in milliseconds, so without the wait there is effectively
+    no time to bet)."""
+
+    def test_open_then_bet_then_finish(self):
+        # The module disables the window via env for the other tests;
+        # drop it here so the admin-set value takes effect.
+        env_key = "ARENA_BETTING_WINDOW_SEC"
+        saved = os.environ.pop(env_key, None)
+        try:
+            with temp_app() as app:
+                with TestClient(app) as c:
+                    r = c.put("/api/admin/settings",
+                              json={"betting_window_sec": 2},
+                              headers=ADMIN_HEADERS)
+                    assert r.status_code == 200, r.text
+                    battle_id = make_battle(c)
+                    # Engine has not started: battle is open for betting.
+                    r = c.get(f"/api/battles/{battle_id}")
+                    self.assertEqual(r.json()["status"], "open")
+                    # A bet placed during the window is accepted.
+                    r = c.post(f"/api/battles/{battle_id}/bets", json={
+                        "fighter_id": "hawk-2", "wallet": "WA",
+                        "amount_sol": 1.0})
+                    self.assertEqual(r.status_code, 201, r.text)
+                    # After the window the engine runs, the battle finishes,
+                    # and the bet settles.
+                    detail = wait_finished(c, app, battle_id, timeout=30.0)
+                    self.assertEqual(detail["status"], "finished")
+                    s = app.state.db.get_settlement(battle_id)
+                    self.assertIsNotNone(s, "settlement row must exist")
+                    self.assertIn(s["status"],
+                                  ("settled", "refunded_draw",
+                                   "refunded_no_winner_bets"))
+        finally:
+            if saved is not None:
+                os.environ[env_key] = saved
 
 
 class SettlementMathTest(unittest.TestCase):

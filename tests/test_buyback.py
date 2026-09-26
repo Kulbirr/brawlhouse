@@ -17,6 +17,7 @@ import urllib.request
 from contextlib import contextmanager
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 
 import bot.buyback as bb  # noqa: E402
 from backend.db import Database  # noqa: E402
@@ -253,27 +254,28 @@ class TestTreasuryEndpoints(unittest.TestCase):
                              c.get("/api/settings").json())
 
     def test_treasury_view_has_no_hardcoded_names(self):
-        root = os.path.join(os.path.dirname(__file__), "..", "frontend")
-        with open(os.path.join(root, "index.html")) as f:
-            html = f.read()
-        with open(os.path.join(root, "app.js")) as f:
-            js = f.read()
-        # the treasury section + nav exist and use data-brand / settings,
-        # not literal project/token names
-        self.assertIn('id="view-treasury"', html)
-        self.assertIn('data-nav="treasury"', html)
-        self.assertIn('id="treasury-stats"', html)
-        self.assertIn('id="treasury-burns-table"', html)
-        self.assertIn('"treasury"', js)
-        self.assertIn("TreasuryView", js)
-        self.assertIn("/api/treasury/stats", js)
-        self.assertIn("/api/treasury/burns", js)
-        # branding flows through settings (loaded from GET /api/settings
-        # at boot), never as literals in the treasury code
-        self.assertIn("token_ticker", js)
+        # The old static frontend/ prototype was removed; the live React
+        # app under web/src must still brand through settings, not
+        # literals.
+        root = os.path.join(os.path.dirname(__file__), "..", "web", "src")
+        tsx_files = []
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for fn in filenames:
+                if fn.endswith((".tsx", ".ts")):
+                    tsx_files.append(os.path.join(dirpath, fn))
+        self.assertTrue(tsx_files, "web/src must contain React sources")
+        treasury = [f for f in tsx_files if "Treasury" in f]
+        self.assertTrue(treasury, "a Treasury page source must exist")
+        blob = "\n".join(open(f).read() for f in treasury)
+        # treasury data comes from the backend APIs...
+        for token in ("/api/treasury/stats", "/api/treasury/burns"):
+            self.assertIn(token, blob)
+        # ...branding flows through settings (loaded from GET /api/settings
+        # at boot), never as literals in the treasury code.
+        self.assertIn("token_ticker", blob)
+        all_src = "\n".join(open(f).read() for f in tsx_files)
         for literal in ("$TKN", "ARENA-PROJECT"):
-            self.assertNotIn(literal, html)
-            self.assertNotIn(literal, js)
+            self.assertNotIn(literal, all_src)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 os.environ["ARENA_PLAYBACK_TICK_MS"] = "0"  # no pacing in WS replays
 os.environ["HELIUS_API_KEY"] = "test-helius-key"
 

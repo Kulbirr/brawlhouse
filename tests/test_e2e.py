@@ -22,6 +22,7 @@ import urllib.request
 from contextlib import contextmanager
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
+os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"  # no betting-window wait in tests
 os.environ["ARENA_PLAYBACK_TICK_MS"] = "0"  # no WS pacing in tests
 
 import bot.buyback as bb  # noqa: E402

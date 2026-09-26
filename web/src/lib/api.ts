@@ -30,7 +30,7 @@ export interface Fighter {
 export interface BattleSummary {
   id: string;
   created_at: string;
-  status: 'running' | 'finished';
+  status: 'open' | 'running' | 'finished';
   seed: number | null;
   exhibition: boolean;
   official: boolean;
@@ -196,6 +196,7 @@ export interface WsInfo {
   status: 'live' | 'replay';
   battle_id: string;
   fighter_ids: string[];
+  battle_status?: 'open' | 'running' | 'finished';
 }
 
 export interface WsFighter {
