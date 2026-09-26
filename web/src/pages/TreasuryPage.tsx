@@ -31,7 +31,7 @@ export default function TreasuryPage() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
 
-  const ticker = settings?.token_ticker || 'TKN';
+  const ticker = settings?.token_ticker || 'BRAWL';
   const animatedBurned = useCountUp(stats?.total_burned_tokens || 0);
 
   const load = useCallback(async (off: number) => {

@@ -31,8 +31,8 @@ class BackendTest(unittest.TestCase):
                 r = c.get("/api/settings")
                 self.assertEqual(r.status_code, 200)
                 body = r.json()
-                self.assertEqual(body["project_name"], "ARENA-PROJECT")
-                self.assertEqual(body["token_ticker"], "TKN")
+                self.assertEqual(body["project_name"], "BRAWLHOUSE")
+                self.assertEqual(body["token_ticker"], "BRAWL")
                 self.assertIn("hire_fee_sol", body)
                 self.assertNotIn("buyback_enabled", body)  # in-house only
 

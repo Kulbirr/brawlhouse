@@ -22,10 +22,10 @@ const NAV = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { settings } = useApp();
-  const name = settings?.project_name || 'ARENA-PROJECT';
-  const ticker = settings?.token_ticker || 'TKN';
+  const name = settings?.project_name || 'BRAWLHOUSE';
+  const ticker = settings?.token_ticker || 'BRAWL';
   const live = Boolean(settings && (settings.hiring_live || settings.betting_live));
-  // "ARENA-PROJECT" -> bright "ARENA" + muted "-PROJECT"
+  // "BRAWLHOUSE" renders fully bright (no dash tail)
   const dash = name.indexOf('-');
   const brandHead = dash > 0 ? name.slice(0, dash) : name;
   const brandTail = dash > 0 ? name.slice(dash) : '';
@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <>
       <header className="site-header">
         <Link className="brand-lockup" to="/arena" aria-label={`${name} home`}>
-          <span className="brand-mark">A</span>
+          <span className="brand-mark">B</span>
           <span className="brand-name">
             {brandHead}
             <span>{brandTail}</span>

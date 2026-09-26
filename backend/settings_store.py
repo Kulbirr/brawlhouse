@@ -15,8 +15,8 @@ from typing import Any
 
 # field -> (env var, type, default)
 FIELDS: dict[str, tuple[str, type, Any]] = {
-    "project_name": ("ARENA_PROJECT_NAME", str, "ARENA-PROJECT"),
-    "token_ticker": ("ARENA_TOKEN_TICKER", str, "TKN"),
+    "project_name": ("ARENA_PROJECT_NAME", str, "BRAWLHOUSE"),
+    "token_ticker": ("ARENA_TOKEN_TICKER", str, "BRAWL"),
     "token_mint": ("ARENA_TOKEN_MINT", str, ""),
     "hire_fee_sol": ("ARENA_HIRE_FEE_SOL", float, 0.10),
     # Live (real-SOL) payments. hiring_live gates the hire flow the same way

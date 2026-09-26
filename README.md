@@ -346,8 +346,8 @@ in-house fields; `PUT /api/admin/settings` persists to the JSON file.
 
 | Field | Env var | Default | Meaning |
 |---|---|---|---|
-| `project_name` | `ARENA_PROJECT_NAME` | `"ARENA-PROJECT"` | public project name (placeholder) |
-| `token_ticker` | `ARENA_TOKEN_TICKER` | `"TKN"` | public token ticker (placeholder) |
+| `project_name` | `ARENA_PROJECT_NAME` | `"BRAWLHOUSE"` | public project name |
+| `token_ticker` | `ARENA_TOKEN_TICKER` | `"BRAWL"` | public token ticker |
 | `token_mint` | `ARENA_TOKEN_MINT` | `""` | token mint address (empty until launch) |
 | `hire_fee_sol` | `ARENA_HIRE_FEE_SOL` | `0.10` | SOL fee recorded per hire (mock) |
 | `betting_house_cut_pct` | `ARENA_BETTING_HOUSE_CUT_PCT` | `5.0` | house cut of betting pools (phase 5) |
@@ -970,8 +970,8 @@ Without it, all admin endpoints answer 503 ("Admin not configured").
 
 | Field | Type | Default | What it does |
 |---|---|---|---|
-| `project_name` | text | `"ARENA-PROJECT"` | public site name (placeholder) |
-| `token_ticker` | text | `"TKN"` | public token ticker (placeholder) |
+| `project_name` | text | `"BRAWLHOUSE"` | public site name |
+| `token_ticker` | text | `"BRAWL"` | public token ticker |
 | `token_mint` | text | `""` | token mint address; empty until launch |
 | `hire_fee_sol` | float | `0.10` | SOL recorded per fighter hire |
 | `betting_house_cut_pct` | float | `5.0` | % house cut taken off the top of each settled betting pool |
