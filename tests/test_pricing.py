@@ -26,6 +26,27 @@ def temp_app():
         yield create_app(data_dir=tmp), Database(f"{tmp}/arena.db")
 
 
+@contextmanager
+def betting_window(seconds=3):
+    """Battles need a real 'open' window for bet/hire API tests.
+
+    The module disables the window (ARENA_BETTING_WINDOW_SEC=0) for speed,
+    but the API only accepts bets and hires while a battle is 'open', so
+    placement tests opt back into a short window here. settings.get reads
+    the env var on every call, so flipping it works even for an app that
+    is already running."""
+    key = "ARENA_BETTING_WINDOW_SEC"
+    saved = os.environ.get(key)
+    os.environ[key] = str(seconds)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
+
+
 def base_fee(c):
     return c.get("/api/settings").json()["hire_fee_sol"]
 
@@ -84,7 +105,7 @@ class PricingTest(unittest.TestCase):
                     self.assertGreaterEqual(fees[fid], round(base * 0.5, 4))
 
     def test_hire_charges_fighter_specific_fee(self):
-        with temp_app() as (app, db):
+        with betting_window(3), temp_app() as (app, db):
             for _ in range(9):
                 db.record_result("iron-1", "win")
             db.record_result("iron-1", "loss")

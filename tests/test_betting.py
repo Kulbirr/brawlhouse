@@ -31,6 +31,25 @@ def temp_app():
         yield create_app(data_dir=tmp)
 
 
+@contextmanager
+def betting_window(seconds=3):
+    """Battles need a real 'open' window for bet/hire API tests.
+
+    The module disables the window (ARENA_BETTING_WINDOW_SEC=0) for speed,
+    but the API only accepts bets and hires while a battle is 'open', so
+    placement tests opt back into a short window here."""
+    key = "ARENA_BETTING_WINDOW_SEC"
+    saved = os.environ.get(key)
+    os.environ[key] = str(seconds)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
+
+
 def wait_finished(c, app, battle_id, timeout=30.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -73,7 +92,7 @@ def fake_battle_row(db, battle_id, engine_ids=("iron-1", "hawk-2")):
 class BettingApiTest(unittest.TestCase):
     # ------------------------------------------------------------ placement
     def test_place_bet_contract(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 r = c.post(f"/api/battles/{battle_id}/bets", json={
@@ -96,7 +115,7 @@ class BettingApiTest(unittest.TestCase):
                 wait_finished(c, app, battle_id)
 
     def test_place_bet_validation(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 # unknown battle -> 404
@@ -146,7 +165,7 @@ class BettingApiTest(unittest.TestCase):
     def test_same_wallet_may_bet_repeatedly(self):
         # Unlike hires (409 on duplicate wallet), bets are parimutuel:
         # one wallet can place several bets.
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 for fid, amt in (("hawk-2", 1.0), ("iron-1", 2.0)):
@@ -160,7 +179,7 @@ class BettingApiTest(unittest.TestCase):
                 wait_finished(c, app, battle_id)
 
     def test_duplicate_hire_rule_unchanged(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 r = c.post(f"/api/battles/{battle_id}/hire",
@@ -173,7 +192,7 @@ class BettingApiTest(unittest.TestCase):
 
     # ----------------------------------------------------------------- pool
     def test_pool_math_and_live_house_cut(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 # unknown battle -> 404
@@ -204,7 +223,7 @@ class BettingApiTest(unittest.TestCase):
                 wait_finished(c, app, battle_id)
 
     def test_bets_list_and_wallet_filter(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 battle_id = make_battle(c)
                 r = c.get("/api/battles/nope/bets")
@@ -262,6 +281,68 @@ class BettingWindowTest(unittest.TestCase):
         finally:
             if saved is not None:
                 os.environ[env_key] = saved
+
+
+class BettingHireWindowTest(unittest.TestCase):
+    """Bets and hires are only accepted while a battle is 'open' — the
+    pre-fight window when the matchup is announced. The engine completes
+    in milliseconds, so 'running'/'finished' must refuse both. A hire
+    also announces the sponsor to every viewer via battle chat."""
+
+    def _row(self, db, bid, status):
+        db.create_battle({
+            "id": bid,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": status,
+            "seed": 1,
+            "exhibition": 0,
+            "fighter_ids": json.dumps(["iron-1", "hawk-2"]),
+            "registry_ids": json.dumps(["iron-1", "hawk-2"]),
+            "playback_speed": 1.0,
+            "hire_fee_sol": 0.10,
+        })
+
+    def test_bet_refused_once_fight_started(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                db = app.state.db
+                self._row(db, "b-run", "running")
+                r = c.post("/api/battles/b-run/bets", json={
+                    "fighter_id": "hawk-2", "wallet": "W", "amount_sol": 1})
+                self.assertEqual(r.status_code, 400, r.text)
+                self.assertIn("before the fight starts", r.json()["detail"])
+
+    def test_hire_refused_once_fight_started(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                db = app.state.db
+                self._row(db, "h-run", "running")
+                self._row(db, "h-fin", "finished")
+                for bid in ("h-run", "h-fin"):
+                    r = c.post(f"/api/battles/{bid}/hire", json={
+                        "fighter_id": "hawk-2", "wallet": "W"})
+                    self.assertEqual(r.status_code, 409, (bid, r.text))
+                    self.assertIn("before the fight starts",
+                                  r.json()["detail"])
+
+    def test_hire_announces_sponsor_in_chat(self):
+        with betting_window(3), temp_app() as app:
+            with TestClient(app) as c:
+                battle_id = make_battle(c)
+                wallet = "WalletSponsor123456789"
+                r = c.post(f"/api/battles/{battle_id}/hire", json={
+                    "fighter_id": "hawk-2", "wallet": wallet})
+                self.assertEqual(r.status_code, 201, r.text)
+                r = c.get(f"/api/battles/{battle_id}/chat")
+                self.assertEqual(r.status_code, 200)
+                msgs = r.json()["messages"]
+                ann = [m for m in msgs if m["wallet"] == "BRAWLHOUSE"]
+                self.assertEqual(len(ann), 1, msgs)
+                # truncated wallet + display name, in the user's words:
+                # "<addr> is now the sponsor of <fighter> for this match."
+                self.assertIn("Wall...6789", ann[0]["message"])
+                self.assertIn("HAWK-2", ann[0]["message"])
+                self.assertIn("for this match", ann[0]["message"])
 
 
 class SettlementMathTest(unittest.TestCase):
@@ -412,7 +493,7 @@ class SettlementMathTest(unittest.TestCase):
 
 class TreasuryLedgerTest(unittest.TestCase):
     def test_hire_fees_logged_and_totals(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 # admin auth enforced
                 r = c.get("/api/treasury/fees")
@@ -444,7 +525,7 @@ class TreasuryLedgerTest(unittest.TestCase):
                 wait_finished(c, app, battle_id)
 
     def test_betting_cut_combines_with_hire_fees(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 c.put("/api/admin/settings",
                       json={"betting_house_cut_pct": 10.0},
@@ -494,7 +575,7 @@ class SettlementHookTest(unittest.TestCase):
     """End-to-end: bets placed on a live battle settle when it finishes."""
 
     def test_battle_finish_triggers_settlement(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 c.put("/api/admin/settings",
                       json={"betting_house_cut_pct": 10.0},
@@ -587,7 +668,7 @@ class MockModeTest(unittest.TestCase):
     def test_live_mode_without_config_is_503(self):
         # betting_live=true with no escrow config -> clear 503, not a
         # silent mock bet and not a crash.
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 c.put("/api/admin/settings", json={"betting_live": True},
                       headers=ADMIN_HEADERS)

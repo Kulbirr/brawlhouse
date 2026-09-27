@@ -65,6 +65,25 @@ def _r9(x):
 
 
 @contextmanager
+def betting_window(seconds=3):
+    """Battles need a real 'open' window for bet/hire API tests.
+
+    The module disables the window (ARENA_BETTING_WINDOW_SEC=0) for speed,
+    but the API only accepts bets and hires while a battle is 'open', so
+    placement tests opt back into a short window here."""
+    key = "ARENA_BETTING_WINDOW_SEC"
+    saved = os.environ.get(key)
+    os.environ[key] = str(seconds)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
+
+
+@contextmanager
 def temp_app():
     with tempfile.TemporaryDirectory() as tmp:
         yield create_app(data_dir=tmp)
@@ -105,7 +124,7 @@ class EndToEndMoneyLoopTest(unittest.TestCase):
 
     def test_full_money_loop(self):
         trace = {}
-        with temp_app() as app:
+        with betting_window(5), temp_app() as app:
             db = app.state.db
             settings = app.state.settings
             with TestClient(app) as c:
@@ -141,7 +160,7 @@ class EndToEndMoneyLoopTest(unittest.TestCase):
                 battle_id = created["id"]
                 engine_ids = created["fighter_ids"]
                 self.assertEqual(engine_ids, FIGHTERS_4)  # unique: no #n suffix
-                self.assertEqual(created["status"], "running")
+                self.assertEqual(created["status"], "open")
                 trace["battle_id"] = battle_id
                 assert_no_private(self, created, "POST /api/battles")
 

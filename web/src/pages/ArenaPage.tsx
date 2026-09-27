@@ -74,6 +74,16 @@ export default function ArenaPage() {
   const [battles, setBattles] = useState<BattleSummary[]>([]);
   const [battle, setBattle] = useState<BattleSummary | null>(null);
   const [live, setLive] = useState(false);
+  /* Phase of the WS stream for the selected battle: 'pregame' means we
+   * connected during the betting window and are waiting for the engine.
+   * The backend only sends 'info' on connect, so the first snapshot is
+   * what tells us the fight actually started. */
+  const phaseRef = useRef<'pregame' | 'live' | 'replay'>('replay');
+  /* True while the selected battle is a live stream we haven't seen end.
+   * The backend marks battles finished the instant the engine bursts, but
+   * the viewer still watches the snapshot backlog — until 'done' arrives
+   * the battle is live for this viewer, and the queue should say so. */
+  const [watchingLive, setWatchingLive] = useState(false);
   const [modeLabel, setModeLabel] = useState('');
   const [tick, setTick] = useState<number | null>(null);
   const [note, setNote] = useState('');
@@ -272,6 +282,9 @@ export default function ArenaPage() {
       }
       if (seq !== seqRef.current) return;
       setBattle(meta);
+      phaseRef.current = 'replay';
+      setWatchingLive(false);
+      setLive(false);
       /* Betting window: battle is open, engine starts at the deadline. */
       if (countdownRef.current) {
         window.clearInterval(countdownRef.current);
@@ -325,6 +338,8 @@ export default function ArenaPage() {
         if (msg.type === 'info') {
           const isLive = msg.status === 'live';
           const isPregame = msg.battle_status === 'open';
+          phaseRef.current = isPregame ? 'pregame' : isLive ? 'live' : 'replay';
+          setWatchingLive(isLive);
           setLive(isLive && !isPregame);
           setPregame(isPregame);
           setModeLabel(isPregame ? 'BETS OPEN' : isLive ? 'STREAMING' : 'REPLAY');
@@ -336,7 +351,16 @@ export default function ArenaPage() {
                 : 'Replay of a finished battle, streamed from stored snapshots.',
           );
         } else if (msg.type === 'snapshot') {
-          setPregame(false);
+          if (phaseRef.current === 'pregame') {
+            /* The betting window closed and the engine started: flip the
+             * badges now. Without this the top stays stuck on "BETS OPEN"
+             * and the red LIVE badge never appears for the whole fight. */
+            phaseRef.current = 'live';
+            setLive(true);
+            setPregame(false);
+            setModeLabel('STREAMING');
+            setNote('Streaming live — ticks arrive as the engine runs them.');
+          }
           detectCombat(prevSnapRef.current, msg.fighters, msg.tick);
           prevSnapRef.current = msg.fighters;
           incomingRef.current = msg;
@@ -347,6 +371,7 @@ export default function ArenaPage() {
           setWsChat({ msg, seq: ++chatSeqRef.current });
         } else if (msg.type === 'done') {
           setDone(true);
+          setWatchingLive(false);
           setNote('');
           const res = msg.result;
           const wReg = regIdOf(res.winner || '');
@@ -520,6 +545,7 @@ export default function ArenaPage() {
             battles={battles}
             selectedId={battleId || null}
             liveTick={tick}
+            watchingLive={watchingLive && !done}
           />
           <LiveBets battleId={battleId || null} />
         </div>

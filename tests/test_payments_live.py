@@ -51,6 +51,27 @@ def temp_app():
         yield create_app(data_dir=tmp)
 
 
+@contextmanager
+def betting_window(seconds=3):
+    """Battles need a real 'open' window for bet/hire API tests.
+
+    The module disables the window (ARENA_BETTING_WINDOW_SEC=0) for speed,
+    but the API only accepts bets and hires while a battle is 'open', so
+    placement tests opt back into a short window here. settings.get reads
+    the env var on every call, so flipping it works even for an app that
+    is already running."""
+    key = "ARENA_BETTING_WINDOW_SEC"
+    saved = os.environ.get(key)
+    os.environ[key] = str(seconds)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
+
+
 class StubSettings:
     """Minimal settings stand-in for payments_live unit tests."""
 
@@ -345,7 +366,7 @@ class LiveSettingsApiTest(unittest.TestCase):
                 self.assertEqual(r.status_code, 400, r.text)
 
     def test_max_bet_enforced(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 r = c.put("/api/admin/settings",
                           json={"max_bet_sol": 2.0},
@@ -413,12 +434,13 @@ class LiveHireFlowTest(unittest.TestCase):
         assert r.status_code == 200, r.text
 
     def _battle(self):
-        # a running battle row with no engine behind it (stays running)
+        # an open battle row with no engine behind it (stays open: the
+        # hireable/bettable pre-fight state)
         battle_id = f"battle-{self._testMethodName}"
         self.db.create_battle({
             "id": battle_id,
             "created_at": "2026-09-26T00:00:00+00:00",
-            "status": "running",
+            "status": "open",
             "seed": 1,
             "exhibition": 0,
             "fighter_ids": '["iron-1", "hawk-2"]',
@@ -569,7 +591,7 @@ class LiveBetFlowTest(unittest.TestCase):
         self.db.create_battle({
             "id": battle_id,
             "created_at": "2026-09-26T00:00:00+00:00",
-            "status": "running",
+            "status": "open",
             "seed": 1,
             "exhibition": 0,
             "fighter_ids": '["iron-1", "hawk-2"]',
@@ -701,15 +723,21 @@ class LiveBetFlowTest(unittest.TestCase):
                        json={"betting_live": False},
                        headers=ADMIN_HEADERS)
         assert r.status_code == 200, r.text
-        battle_id = make_battle(self.c)
-        r = self.c.post(f"/api/battles/{battle_id}/bets", json={
-            "fighter_id": "hawk-2", "wallet": "WalletAAA",
-            "amount_sol": 1.5})
-        self.assertEqual(r.status_code, 201, r.text)
-        self.assertEqual(
-            sorted(r.json().keys()),
-            ["amount_sol", "battle_id", "created_at", "fighter_id",
-             "id", "payment_status", "wallet"])
+        # the mock bet needs an 'open' battle: flip the window for this
+        # app (settings.get reads the env var on every call)
+        os.environ["ARENA_BETTING_WINDOW_SEC"] = "3"
+        try:
+            battle_id = make_battle(self.c)
+            r = self.c.post(f"/api/battles/{battle_id}/bets", json={
+                "fighter_id": "hawk-2", "wallet": "WalletAAA",
+                "amount_sol": 1.5})
+            self.assertEqual(r.status_code, 201, r.text)
+            self.assertEqual(
+                sorted(r.json().keys()),
+                ["amount_sol", "battle_id", "created_at", "fighter_id",
+                 "id", "payment_status", "wallet"])
+        finally:
+            os.environ["ARENA_BETTING_WINDOW_SEC"] = "0"
         wait_finished(self.c, self.app, battle_id)
 
 

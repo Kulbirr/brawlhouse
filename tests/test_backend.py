@@ -24,6 +24,25 @@ def temp_app():
         yield create_app(data_dir=tmp)
 
 
+@contextmanager
+def betting_window(seconds=3):
+    """Battles need a real 'open' window for bet/hire API tests.
+
+    The module disables the window (ARENA_BETTING_WINDOW_SEC=0) for speed,
+    but the API only accepts bets and hires while a battle is 'open', so
+    placement tests opt back into a short window here."""
+    key = "ARENA_BETTING_WINDOW_SEC"
+    saved = os.environ.get(key)
+    os.environ[key] = str(seconds)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
+
+
 class BackendTest(unittest.TestCase):
     # ------------------------------------------------------------- settings
     def test_health_reports_scheduler_status(self):
@@ -235,7 +254,7 @@ class BackendTest(unittest.TestCase):
 
     # ---------------------------------------------------------------- hires
     def test_hire_and_duplicate_rejected(self):
-        with temp_app() as app:
+        with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
                 r = c.post("/api/battles", json={
                     "fighter_ids": ["iron-1", "hawk-2"], "seed": 42})

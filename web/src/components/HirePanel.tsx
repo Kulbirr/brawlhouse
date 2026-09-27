@@ -32,8 +32,16 @@ export default function HirePanel({
   const baseFee = settings?.hire_fee_sol ?? 0;
   const feeByReg = new Map(fighters.map((f) => [f.id, f.hire_fee_sol]));
   const feeFor = (regId: string) => feeByReg.get(regId) ?? baseFee;
-  const live = battle.status === 'running' && !done;
-  const hiredSet = new Set(hires.map((h) => h.fighter_id));
+  /* Hiring is the pre-fight window: the matchup is announced, the engine
+   * hasn't run yet. (It used to require status 'running' — by then the
+   * fight is already decided, so the button was dead on arrival.) */
+  const hireOpen = battle.status === 'open' && !done;
+  const myWallet = publicKey?.toBase58() ?? null;
+  const myHire = myWallet
+    ? hires.find((h) => h.wallet === myWallet)
+    : undefined;
+  const sponsorsFor = (eid: string) => hires.filter((h) => h.fighter_id === eid);
+  const trunc = (w: string) => (w.length > 10 ? `${w.slice(0, 4)}...${w.slice(-4)}` : w);
 
   const hire = async (fid: string) => {
     if (!connected || !publicKey || !signTransaction || busyFid) return;
@@ -55,9 +63,9 @@ export default function HirePanel({
       );
       const row = res.hire as HireRow | undefined;
       if (res.live) {
-        setMsg(`Hired ${fighterName(regIdOf(fid))} — paid ${fmtSol(row?.fee_sol ?? feeFor(regIdOf(fid)))} SOL.`);
+        setMsg(`You're the sponsor of ${fighterName(regIdOf(fid))} for this match — paid ${fmtSol(row?.fee_sol ?? feeFor(regIdOf(fid)))} SOL, announced to everyone watching.`);
       } else {
-        setMsg(`Hired ${fighterName(regIdOf(fid))} (simulation — no real payment).`);
+        setMsg(`You're the sponsor of ${fighterName(regIdOf(fid))} for this match (simulation — no real payment). Announced to everyone watching.`);
       }
       onHired();
     } catch {
@@ -70,17 +78,25 @@ export default function HirePanel({
   return (
     <div>
       <div className="muted small" style={{ marginBottom: 10 }}>
-        Prices follow form — each fighter costs its own strength-based price
+        The matchup is announced before the fight — sponsor a fighter while
+        hiring is open. Prices follow form: each fighter costs its own
+        strength-based price
         (base <b style={{ color: 'var(--lime)' }}>{fmtSol(baseFee)} SOL</b>).
         {settings?.hiring_live ? (
           <span style={{ color: 'var(--red)' }}> LIVE — real SOL.</span>
         ) : (
           <span> (simulation)</span>
         )}
+        {hireOpen ? (
+          <span style={{ color: 'var(--lime)' }}> Hiring closes when the fight starts.</span>
+        ) : (
+          <span> Hiring is closed for this battle.</span>
+        )}
       </div>
       <div className="hire-list">
         {battle.fighter_ids.map((eid) => {
-          const hired = hiredSet.has(eid);
+          const sponsors = sponsorsFor(eid);
+          const mine = myHire?.fighter_id === eid;
           const busy = busyFid === eid;
           const price = feeFor(regIdOf(eid));
           return (
@@ -94,14 +110,29 @@ export default function HirePanel({
                 {eid.includes('#') ? <span className="muted"> ({eid})</span> : ''}
               </span>
               <span className="hire-fee mono">{fmtSol(price)} SOL</span>
-              {hired ? (
-                <span className="hire-state hired">Hired</span>
+              {mine ? (
+                <span className="hire-state hired">Sponsored by you</span>
+              ) : sponsors.length > 0 ? (
+                <span
+                  className="hire-state hired"
+                  title={sponsors.map((s) => s.wallet).join(', ')}
+                >
+                  Sponsored by {trunc(sponsors[0].wallet)}
+                  {sponsors.length > 1 ? ` +${sponsors.length - 1}` : ''}
+                </span>
               ) : !connected ? (
                 <span className="hire-state idle">Hire</span>
               ) : (
                 <button
                   className="btn btn-small"
-                  disabled={!live || busy}
+                  disabled={!hireOpen || !!myHire || busy}
+                  title={
+                    !hireOpen
+                      ? 'Hiring opens before the fight starts'
+                      : myHire
+                        ? 'You already sponsor a fighter in this battle'
+                        : 'Sponsor this fighter for this match'
+                  }
                   onClick={() => void hire(eid)}
                 >
                   {busy ? PHASE_MESSAGE[phase] || 'Working…' : 'Hire'}

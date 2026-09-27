@@ -412,6 +412,9 @@ def create_app(data_dir: str | Path | None = None,
         rec = db.get_battle(battle_id)
         if rec is None:
             raise HTTPException(404, "Battle not found")
+        if rec["status"] != "open":
+            raise HTTPException(
+                409, "Hiring is only open before the fight starts")
         engine_ids = json.loads(rec["fighter_ids"])
         registry_ids = json.loads(rec["registry_ids"])
         if body.fighter_id in engine_ids:
@@ -460,6 +463,7 @@ def create_app(data_dir: str | Path | None = None,
             raise HTTPException(409, "Wallet already hired in this battle")
         # Phase 5: every fee lands in the treasury ledger for the buyback bot.
         db.record_fee_event(battle_id, "hire", hire["fee_sol"])
+        _announce_sponsor(battle_id, wallet, reg_id)
         return hire
 
     @app.post("/api/battles/{battle_id}/hire/confirm", status_code=200)
@@ -489,6 +493,15 @@ def create_app(data_dir: str | Path | None = None,
         except ValueError as exc:
             raise HTTPException(400, str(exc))
         db.record_fee_event(battle_id, "hire", row["fee_sol"])
+        # Announce the sponsor only once the on-chain payment confirms.
+        rec = db.get_battle(battle_id)
+        reg_id = row["fighter_id"]
+        if rec is not None:
+            engine_ids = json.loads(rec["fighter_ids"])
+            registry_ids = json.loads(rec["registry_ids"])
+            if row["fighter_id"] in engine_ids:
+                reg_id = registry_ids[engine_ids.index(row["fighter_id"])]
+        _announce_sponsor(battle_id, row["wallet"], reg_id)
         return row
 
     @app.get("/api/battles/{battle_id}/hires")
@@ -511,8 +524,9 @@ def create_app(data_dir: str | Path | None = None,
         if rec["exhibition"]:
             raise HTTPException(400,
                                 "Betting is not allowed on exhibition battles")
-        if rec["status"] == "finished":
-            raise HTTPException(400, "Battle already finished; betting is closed")
+        if rec["status"] != "open":
+            raise HTTPException(
+                400, "Betting is only open before the fight starts")
         engine_ids = json.loads(rec["fighter_ids"])
         if body.fighter_id not in engine_ids:
             raise HTTPException(
@@ -631,6 +645,30 @@ def create_app(data_dir: str | Path | None = None,
         import re
         no_tags = re.sub(r"<[^>]*>", "", raw)
         return re.sub(r"\s+", " ", no_tags).strip()
+
+    def _trunc_wallet(wallet: str) -> str:
+        w = (wallet or "").strip()
+        return f"{w[:4]}...{w[-4:]}" if len(w) > 10 else w
+
+    def _fighter_display_name(reg_id: str) -> str:
+        reg = next((f for f in FIGHTERS if f["id"] == reg_id), None)
+        if reg:
+            return reg.get("name") or reg_id
+        return reg_id  # born FTs already carry their FT-XXXX display id
+
+    def _announce_sponsor(battle_id: str, wallet: str, reg_id: str) -> None:
+        """System chat message so every viewer sees who sponsored whom.
+
+        Posted straight to the DB (bypassing the 2s rate limit): the WS
+        chat drain forwards it to all connected viewers within a second.
+        Never raises — a failed announcement must not break the hire."""
+        try:
+            db.add_chat_message(
+                battle_id, "BRAWLHOUSE",
+                f"{_trunc_wallet(wallet)} is now the sponsor of "
+                f"{_fighter_display_name(reg_id)} for this match.")
+        except Exception:
+            pass
 
     @app.post("/api/battles/{battle_id}/chat", status_code=201)
     def post_chat(battle_id: str, body: ChatBody):

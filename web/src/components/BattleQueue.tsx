@@ -80,19 +80,30 @@ export default function BattleQueue({
   battles,
   selectedId,
   liveTick,
+  watchingLive,
 }: {
   battles: BattleSummary[];
   selectedId: string | null;
   liveTick: number | null;
+  watchingLive: boolean;
 }) {
   // 'open' = betting window before the engine starts; still the live card.
+  // watchingLive covers the stream-lag case: the backend marks a battle
+  // finished the instant its engine bursts, but this viewer is still
+  // watching the snapshot backlog until 'done' arrives — for them it is
+  // still live, so keep it in the live slot instead of Recent.
   const live = battles.filter(
-    (b) => b.status === 'running' || b.status === 'open',
+    (b) =>
+      b.status === 'running' ||
+      b.status === 'open' ||
+      (watchingLive && b.id === selectedId),
   );
-  const recent = battles.filter((b) => b.status === 'finished').slice(0, 6);
   // Show the selected battle first when it's live, otherwise the newest live.
   const liveCard =
     live.find((b) => b.id === selectedId) || live[0] || null;
+  const recent = battles
+    .filter((b) => b.status === 'finished' && b.id !== liveCard?.id)
+    .slice(0, 6);
 
   return (
     <div className="panel">
