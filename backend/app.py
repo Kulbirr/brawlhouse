@@ -115,6 +115,11 @@ class WalletBody(BaseModel):
     wallet: str = Field(..., min_length=1, max_length=128)
 
 
+class ReleaseBody(BaseModel):
+    wallet: str = Field(..., min_length=1, max_length=128)
+    battle_id: str = Field(..., min_length=1, max_length=128)
+
+
 # ---------------------------------------------------------------- app factory
 def create_app(data_dir: str | Path | None = None,
                env_path: str | Path | None = None,
@@ -749,6 +754,13 @@ def create_app(data_dir: str | Path | None = None,
         """Mark all of a wallet's notifications read."""
         marked = db.mark_notifications_read(body.wallet)
         return {"marked": marked}
+
+    @app.post("/api/notifications/release")
+    def release_notifications(body: ReleaseBody):
+        """Reveal a wallet's notifications for a battle the player has now
+        seen finish (frontend calls this when playback hits 'done')."""
+        released = db.release_notifications(body.wallet, body.battle_id)
+        return {"released": released}
 
     @app.get("/api/ft/queue")
     def ft_queue():

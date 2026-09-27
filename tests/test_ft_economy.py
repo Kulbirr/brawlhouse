@@ -496,6 +496,10 @@ class OfficialBattleTest(unittest.TestCase):
                 registry_ids=[r1["id"], r2["id"]],
                 engine_ids=[r1["id"], r2["id"]])
             ft_economy._settle_official_battle(db, settings, live)
+            # Unreleased until the player sees the battle end.
+            self.assertEqual(db.list_notifications("WALLET_A"), [])
+            db.release_notifications("WALLET_A", bid)
+            db.release_notifications("WALLET_B", bid)
             wa = db.list_notifications("WALLET_A")
             wb = db.list_notifications("WALLET_B")
             self.assertEqual(len(wa), 1)

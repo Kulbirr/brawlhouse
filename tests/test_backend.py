@@ -331,12 +331,16 @@ class BackendTest(unittest.TestCase):
     def test_notification_crud(self):
         with temp_app() as app:
             db = app.state.db
-            # create
+            # create (unreleased: not visible until the player sees the end)
             n = db.create_notification("W1", "hire_win", "Won!",
                                        "You won 1 SOL", battle_id="b1")
             self.assertEqual(n["wallet"], "W1")
             self.assertIsNone(n["read_at"])
-            # list + unread count
+            self.assertEqual(n["released"], 0)
+            self.assertEqual(db.list_notifications("W1"), [])
+            self.assertEqual(db.unread_notification_count("W1"), 0)
+            # release -> visible
+            self.assertEqual(db.release_notifications("W1", "b1"), 1)
             notes = db.list_notifications("W1")
             self.assertEqual(len(notes), 1)
             self.assertEqual(db.unread_notification_count("W1"), 1)
@@ -352,13 +356,24 @@ class BackendTest(unittest.TestCase):
             with TestClient(app) as c:
                 db = app.state.db
                 db.create_notification("WA", "hire_loss", "Lost", "Bot lost")
-                # list
+                # unreleased: hidden
+                r = c.get("/api/notifications", params={"wallet": "WA"})
+                self.assertEqual(r.json()["notifications"], [])
+                self.assertEqual(r.json()["unread"], 0)
+                # release -> visible
+                r = c.post("/api/notifications/release",
+                           json={"wallet": "WA", "battle_id": "nope"})
+                self.assertEqual(r.json()["released"], 0)
+                db.release_notifications("WA", "nope")  # no battle, no-op
+                n = db.create_notification("WA", "hire_loss", "Lost2", "x",
+                                           battle_id="b9", released=True)
+                self.assertEqual(n["released"], 1)
                 r = c.get("/api/notifications", params={"wallet": "WA"})
                 self.assertEqual(r.status_code, 200)
                 d = r.json()
                 self.assertEqual(len(d["notifications"]), 1)
                 self.assertEqual(d["unread"], 1)
-                self.assertEqual(d["notifications"][0]["title"], "Lost")
+                self.assertEqual(d["notifications"][0]["title"], "Lost2")
                 # mark read
                 r = c.post("/api/notifications/read",
                            json={"wallet": "WA"})
@@ -366,6 +381,18 @@ class BackendTest(unittest.TestCase):
                 self.assertEqual(r.json()["marked"], 1)
                 r = c.get("/api/notifications", params={"wallet": "WA"})
                 self.assertEqual(r.json()["unread"], 0)
+
+    def test_notification_release_api(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                db = app.state.db
+                db.create_notification("WB", "hire_win", "Won", "y",
+                                       battle_id="b7")
+                r = c.post("/api/notifications/release",
+                           json={"wallet": "WB", "battle_id": "b7"})
+                self.assertEqual(r.json()["released"], 1)
+                r = c.get("/api/notifications", params={"wallet": "WB"})
+                self.assertEqual(len(r.json()["notifications"]), 1)
 
     # ------------------------------------------------------------ websocket
     def test_ws_replay_finished_battle(self):

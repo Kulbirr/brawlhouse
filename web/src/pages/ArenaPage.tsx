@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useWallet } from '@solana/wallet-adapter-react';
 import {
   api,
   type BattleSummary,
@@ -85,6 +86,11 @@ export default function ArenaPage() {
   const [tick, setTick] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [done, setDone] = useState(false);
+  const { publicKey } = useWallet();
+  const walletAddr = publicKey?.toBase58() ?? '';
+  const walletRef = useRef(walletAddr);
+  walletRef.current = walletAddr;
+  const battleIdRef = useRef<string>('');
   const [winner, setWinner] = useState<{ regId: string; draw: boolean } | null>(
     null,
   );
@@ -249,6 +255,7 @@ export default function ArenaPage() {
       }
       if (seq !== seqRef.current) return;
       setBattle(meta);
+      battleIdRef.current = meta.id;
       phaseRef.current = 'replay';
       setWatchingLive(false);
       setLive(false);
@@ -339,6 +346,15 @@ export default function ArenaPage() {
           setDone(true);
           setWatchingLive(false);
           setNote('');
+          // Player has now seen the battle end: reveal their notifications.
+          const w = walletRef.current;
+          const bid = battleIdRef.current;
+          if (w && bid) {
+            api('/api/notifications/release', {
+              method: 'POST',
+              body: JSON.stringify({ wallet: w, battle_id: bid }),
+            }).catch(() => {});
+          }
           const res = msg.result;
           const wReg = regIdOf(res.winner || '');
           const wName = fighterNameRef.current(wReg);

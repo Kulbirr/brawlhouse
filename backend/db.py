@@ -113,7 +113,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     message TEXT NOT NULL,
     battle_id TEXT,
     created_at TEXT NOT NULL,
-    read_at TEXT                    -- NULL = unread
+    read_at TEXT,                   -- NULL = unread
+    released INTEGER NOT NULL DEFAULT 0  -- 1 = player has seen the battle end
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_wallet ON notifications (wallet, created_at);
 
@@ -375,6 +376,9 @@ class Database:
                 "official INTEGER NOT NULL DEFAULT 0",
                 "mode TEXT",
                 "prize_pool_sol REAL",
+            ],
+            "notifications": [
+                "released INTEGER NOT NULL DEFAULT 0",
             ],
         }
         for table, columns in migrations.items():
@@ -654,45 +658,84 @@ class Database:
     # -------------------------------------------------------- notifications
     def create_notification(self, wallet: str, kind: str, title: str,
                             message: str,
-                            battle_id: str | None = None) -> dict[str, Any]:
-        """Write one player notification. Returns the row."""
+                            battle_id: str | None = None,
+                            released: bool = False) -> dict[str, Any]:
+        """Write one player notification. Unreleased until the player has
+        seen the battle end (or the stale-release fallback fires)."""
         now = _utcnow()
         with self._lock:
             cur = self._conn.execute(
                 """INSERT INTO notifications
-                   (wallet, kind, title, message, battle_id, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (wallet, kind, title, message, battle_id, now),
+                   (wallet, kind, title, message, battle_id, created_at,
+                    released)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (wallet, kind, title, message, battle_id, now,
+                 1 if released else 0),
             )
             self._conn.commit()
             nid = cur.lastrowid
         rows = self._q("SELECT * FROM notifications WHERE id = ?", (nid,))
         return self._row_dict(rows[0])
 
+    def release_notifications(self, wallet: str,
+                              battle_id: str) -> int:
+        """Reveal a wallet's notifications for a battle the player has now
+        seen finish. Returns count released."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE notifications SET released = 1 "
+                "WHERE wallet = ? AND battle_id = ? AND released = 0",
+                (wallet, battle_id),
+            )
+            self._conn.commit()
+            return cur.rowcount
+
+    def release_stale_notifications(self, older_than_minutes: int = 5) -> int:
+        """Fallback: release notifications for battles finished long ago,
+        for players who never watched. Returns count released."""
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) -
+                  timedelta(minutes=older_than_minutes)).isoformat()
+        with self._lock:
+            cur = self._conn.execute(
+                """UPDATE notifications SET released = 1
+                   WHERE released = 0 AND battle_id IN (
+                       SELECT id FROM battles
+                       WHERE status = 'finished'
+                         AND finished_at IS NOT NULL
+                         AND finished_at < ?)""",
+                (cutoff,),
+            )
+            self._conn.commit()
+            return cur.rowcount
+
     def list_notifications(self, wallet: str,
                            limit: int = 50) -> list[dict[str, Any]]:
+        # Only released notifications are visible to the player.
+        self.release_stale_notifications()
         rows = self._q(
-            """SELECT * FROM notifications WHERE wallet = ?
+            """SELECT * FROM notifications WHERE wallet = ? AND released = 1
                ORDER BY created_at DESC, id DESC LIMIT ?""",
             (wallet, limit),
         )
         return [self._row_dict(r) for r in rows]
 
     def unread_notification_count(self, wallet: str) -> int:
+        self.release_stale_notifications()
         rows = self._q(
             "SELECT COUNT(*) AS n FROM notifications "
-            "WHERE wallet = ? AND read_at IS NULL",
+            "WHERE wallet = ? AND released = 1 AND read_at IS NULL",
             (wallet,),
         )
         return int(rows[0]["n"]) if rows else 0
 
     def mark_notifications_read(self, wallet: str) -> int:
-        """Mark all unread notifications read. Returns count marked."""
+        """Mark all unread *released* notifications read. Returns count."""
         now = _utcnow()
         with self._lock:
             cur = self._conn.execute(
                 "UPDATE notifications SET read_at = ? "
-                "WHERE wallet = ? AND read_at IS NULL",
+                "WHERE wallet = ? AND released = 1 AND read_at IS NULL",
                 (now, wallet),
             )
             self._conn.commit()
