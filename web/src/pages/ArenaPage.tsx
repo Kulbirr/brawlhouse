@@ -713,7 +713,7 @@ export default function ArenaPage() {
             {(settings?.token_mint || '').trim() && (
               <div className="stat-card" style={{ minWidth: 220 }}>
                 <span className="stat-label">Token CA</span>
-                <span className="stat-value mono" style={{ fontSize: 11, wordBreak: 'break-all', lineHeight: 1.5 }}>
+                <span className="stat-value mono" style={{ fontSize: 11, wordBreak: 'break-all', lineHeight: 1.5, whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
                   {(settings?.token_mint || '').trim()}
                 </span>
                 <span className="stat-sub mono">
