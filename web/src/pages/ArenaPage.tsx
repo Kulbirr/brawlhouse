@@ -711,7 +711,7 @@ export default function ArenaPage() {
               </span>
             </div>
             {(settings?.token_mint || '').trim() && (
-              <div className="stat-card" style={{ minWidth: 220 }}>
+              <div className="stat-card" style={{ gridColumn: '1 / -1' }}>
                 <span className="stat-label">Token CA</span>
                 <span className="stat-value mono" style={{ fontSize: 11, wordBreak: 'break-all', lineHeight: 1.5, whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
                   {(settings?.token_mint || '').trim()}

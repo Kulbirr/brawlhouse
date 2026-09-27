@@ -12,18 +12,21 @@
   "dependencies": {
     "@solana/wallet-adapter-base": "^0.9.28",
     "@solana/wallet-adapter-react": "^0.15.40",
+    "@solana/wallet-adapter-phantom": "^0.9.30",
     "@solana/wallet-adapter-react-ui": "^0.9.40",
-    "@solana/wallet-adapter-wallets": "^0.19.39",
+    "@solana/wallet-adapter-solflare": "^0.6.34",
     "@solana/web3.js": "^1.99.0",
+    "base64url": "^3.0.1",
     "buffer": "^6.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",

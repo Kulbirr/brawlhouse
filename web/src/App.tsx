@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
-import '@solana/wallet-adapter-react-ui/styles.css';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
+import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';import '@solana/wallet-adapter-react-ui/styles.css';
 
 import { AppProvider, useApp } from './lib/store';
 import { SOLANA_RPC_URL } from './lib/payments';
