@@ -23,10 +23,22 @@ function useCountUp(target: number, duration = 900): number {
   return v;
 }
 
+interface BuybackStatus {
+  running: boolean;
+  interval_minutes: number;
+  buyback_live: boolean;
+  buyback_enabled: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_detail: string;
+  cycles: number;
+}
+
 export default function TreasuryPage() {
   const { settings } = useApp();
   const [stats, setStats] = useState<TreasuryStats | null>(null);
   const [burns, setBurns] = useState<BurnRecord[]>([]);
+  const [bot, setBot] = useState<BuybackStatus | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +51,11 @@ export default function TreasuryPage() {
       if (off === 0) {
         const s = await api<TreasuryStats>('/api/treasury/stats');
         setStats(s);
+        try {
+          setBot(await api<BuybackStatus>('/api/treasury/buyback-status'));
+        } catch {
+          /* bot status optional */
+        }
       }
       const d = await api<{ burns: BurnRecord[] }>(
         `/api/treasury/burns?limit=${LIMIT}&offset=${off}`,
@@ -94,9 +111,20 @@ export default function TreasuryPage() {
         <div>
           <strong>BUYBACK MACHINE</strong>
           <span>Platform fees route to scheduled ${ticker} buybacks and burns.</span>
+          {bot && (
+            <span className="muted small" style={{ display: 'block', marginTop: 4 }}>
+              {bot.running ? 'Bot running' : 'Bot stopped'}
+              {' · every '}
+              {bot.interval_minutes} min
+              {bot.last_run_at
+                ? ` · last cycle ${bot.last_status || ''}${bot.last_detail ? ` (${bot.last_detail})` : ''}`
+                : ' · no cycles yet'}
+              {!bot.buyback_live && ' · simulated (live mode off)'}
+            </span>
+          )}
         </div>
         <span className="machine-state">
-          <i /> SCHEDULED
+          <i /> {bot ? (bot.running ? (bot.buyback_live ? 'LIVE' : 'RUNNING (SIM)') : 'STOPPED') : 'SCHEDULED'}
         </span>
       </div>
 

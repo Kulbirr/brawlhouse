@@ -31,6 +31,7 @@ from backend import ft_economy  # noqa: E402
 from backend.battle_runner import BattleRunner  # noqa: E402
 from backend.db import Database  # noqa: E402
 from backend.official_scheduler import OfficialScheduler  # noqa: E402
+from backend.buyback_scheduler import BuybackScheduler  # noqa: E402
 from backend.settings_store import PRIVATE_FIELDS, SettingsStore  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -1041,23 +1042,8 @@ def create_app(data_dir: str | Path | None = None,
         finally:
             await _close_ws_quietly(ws)
 
-    # --------------------------------------------------- frontend (Phase 4)
-    # SPA fallback for clean URLs (BrowserRouter): real static files are
-    # served directly; every other non-API path gets index.html so the
-    # client router can render it. Registered AFTER all API/WS routes.
-    @app.get("/{full_path:path}")
-    def spa_fallback(full_path: str):
-        dist = (PROJECT_ROOT / "web" / "dist").resolve()
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404)
-        if full_path:
-            candidate = (dist / full_path).resolve()
-            if str(candidate).startswith(str(dist)) and candidate.is_file():
-                return FileResponse(candidate)
-        index = dist / "index.html"
-        if index.is_file():
-            return FileResponse(index)
-        raise HTTPException(status_code=404)
+    # NOTE: the SPA fallback (clean URLs) is registered at the very end of
+    # create_app, after every API/WS route, so it never swallows them.
 
     # Official-battle scheduler object always exists (the background
     # thread only starts when enabled); the admin fallback endpoint
@@ -1071,6 +1057,38 @@ def create_app(data_dir: str | Path | None = None,
     # fallback endpoint can force a battle even when the background
     # thread is disabled or dead.
     app.state.scheduler = scheduler
+
+    # Buyback bot: runs on buyback_interval_minutes in production, same
+    # lifecycle as the battle scheduler. Mock by default.
+    buyback = BuybackScheduler(db, settings)
+    if start_scheduler:
+        buyback.start()
+    app.state.buyback = buyback
+
+    @app.get("/api/treasury/buyback-status")
+    def buyback_status():
+        """Live buyback bot status for the Treasury page."""
+        # Public: never exposes the in-house pause toggle.
+        return buyback.status()
+
+    # --------------------------------------------------- frontend (Phase 4)
+    # SPA fallback for clean URLs (BrowserRouter): real static files are
+    # served directly; every other non-API path gets index.html so the
+    # client router can render it. Registered LAST so it never swallows
+    # an API/WS route.
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):
+        dist = (PROJECT_ROOT / "web" / "dist").resolve()
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404)
+        if full_path:
+            candidate = (dist / full_path).resolve()
+            if str(candidate).startswith(str(dist)) and candidate.is_file():
+                return FileResponse(candidate)
+        index = dist / "index.html"
+        if index.is_file():
+            return FileResponse(index)
+        raise HTTPException(status_code=404)
 
     return app
 

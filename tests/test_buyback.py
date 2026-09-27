@@ -278,5 +278,39 @@ class TestTreasuryEndpoints(unittest.TestCase):
             self.assertNotIn(literal, all_src)
 
 
+class TestBuybackScheduler(unittest.TestCase):
+    def test_cycle_and_status_endpoint(self):
+        from backend.buyback_scheduler import BuybackScheduler
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(data_dir=tmp)
+            db = app.state.db
+            settings = app.state.settings
+            seed_fees(db)
+            sched = BuybackScheduler(db, settings)
+            # status before any cycle
+            st = sched.status()
+            self.assertFalse(st["running"])
+            self.assertIsNone(st["last_run_at"])
+            self.assertEqual(st["cycles"], 0)
+            # run one cycle: mock burn recorded
+            res = sched.run_cycle_now()
+            self.assertEqual(res["status"], "burned")
+            st = sched.status()
+            self.assertEqual(st["cycles"], 1)
+            self.assertIsNotNone(st["last_run_at"])
+            self.assertEqual(st["last_status"], "burned")
+            self.assertIn("mock", st["last_detail"])
+            # API exposes it
+            c = TestClient(app)
+            r = c.get("/api/treasury/buyback-status")
+            self.assertEqual(r.status_code, 200)
+            body = r.json()
+            self.assertIn("running", body)
+            self.assertIn("interval_minutes", body)
+            self.assertNotIn("buyback_enabled", body)  # public, not private
+            # app.state carries a scheduler object
+            self.assertIsNotNone(app.state.buyback)
+
+
 if __name__ == "__main__":
     unittest.main()
