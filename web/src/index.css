@@ -1080,14 +1080,16 @@ a { color: var(--lime); }
   background: var(--bg2);
 }
 .hire-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.hire-name { flex: 1; font-weight: 600; font-size: 13.5px; min-width: 0; }
+.hire-name { flex: 1; font-weight: 600; font-size: 13.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hire-fee {
   flex-shrink: 0;
+  white-space: nowrap;
   color: var(--lime);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
+.hire-row .btn-small { flex-shrink: 0; white-space: nowrap; }
 .hire-state {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1095,6 +1097,8 @@ a { color: var(--lime); }
   text-transform: uppercase;
   padding: 6px 12px;
   border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .hire-state.hired { color: var(--amber); border: 1px solid rgba(255, 176, 32, 0.4); background: rgba(255, 176, 32, 0.08); }
 .hire-state.idle { color: var(--dim); border: 1px solid var(--line); }
@@ -1245,6 +1249,9 @@ a { color: var(--lime); }
   gap: 20px;
   align-items: start;
 }
+/* Queued-fighters table: hug its content instead of stretching 4 short
+ * columns across the whole panel (which left awkward dead gaps). */
+.queue-layout .arena-table { width: auto; min-width: min(620px, 100%); }
 @media (max-width: 900px) {
   .born-layout, .queue-layout, .season-layout { grid-template-columns: 1fr; }
 }

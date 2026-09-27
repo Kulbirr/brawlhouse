@@ -142,7 +142,10 @@ class RusherBot(_HouseBot):
     STRAFE_SPEED = 0.95       # strafe speed as fraction of max
     INWARD_DRIFT = 0.35       # how hard it still pushes in while strafing
     CHARGE_SPEED = 1.0
-    WEAVE_AMP = 0.5           # lateral weave while charging (fraction of max)
+    WEAVE_AMP = 0.25          # was 0.5: halved. A juggernaut should be EASY
+                              # to hit — its defense is reaching you, not
+                              # dodging. (0.5 made predictive aim whiff and
+                              # let it out-trade snipers at range.)
     WEAVE_FREQ = 0.30         # weave oscillation, radians per tick
     FIRE_RANGE = 700.0
     DASH_MIN_DIST = 200.0     # dash to close gaps wider than this
@@ -218,9 +221,11 @@ class SniperBot(_HouseBot):
 
     KEEP_MIN = 380.0          # closer than this -> kite away
     KEEP_MAX = 560.0          # farther than this -> close in
-    ENDGAME_ALIVE = 2         # with this few fighters left, stop kiting
-    ENDGAME_KEEP_MIN = 180.0  # and close in to finish the fight
-    ENDGAME_KEEP_MAX = 320.0
+    ENDGAME_ALIVE = 2         # with this few fighters left...
+    ENDGAME_KEEP_MIN = 300.0  # ...keep sniping, don't brawl: closing in on
+    ENDGAME_KEEP_MAX = 480.0  # a rusher to "finish the fight" is suicide.
+                              # (Used to close to 180-320 and trade point
+                              # blank — it lost every duel to IRON-1.)
     KITE_SPEED = 1.0
     APPROACH_SPEED = 0.75
     ORBIT_SPEED = 0.45        # sideways drift while in the comfort band
@@ -250,8 +255,15 @@ class SniperBot(_HouseBot):
             keep_min, keep_max = self.KEEP_MIN, self.KEEP_MAX
 
         if dist < keep_min:
-            move = [-math.cos(ang) * self.max_speed * self.KITE_SPEED,
-                    -math.sin(ang) * self.max_speed * self.KITE_SPEED]
+            # Kite away in an ARC, not a straight line: pure straight-line
+            # kiting backs into walls/corners where the rusher catches it.
+            # Blending retreat with the orbit direction circles the arena.
+            move = [(-math.cos(ang) * 0.75
+                     - math.sin(ang) * self._orbit_dir * 0.65)
+                    * self.max_speed * self.KITE_SPEED,
+                    (-math.sin(ang) * 0.75
+                     + math.cos(ang) * self._orbit_dir * 0.65)
+                    * self.max_speed * self.KITE_SPEED]
         elif dist > keep_max:
             move = [math.cos(ang) * self.max_speed * self.APPROACH_SPEED,
                     math.sin(ang) * self.max_speed * self.APPROACH_SPEED]
@@ -283,7 +295,9 @@ class SniperBot(_HouseBot):
 class DefenderBot(_HouseBot):
     """AEGIS-4. Holds ground near the arena center, raises its shield
     against incoming fire or point-blank attackers, and punishes anyone
-    who comes in by shooting back through its own shield."""
+    who comes in by dropping the shield to fire back, then guarding again.
+    Every shot is a moment of vulnerability: the engine drops the shield
+    for the rest of the tick when it fires."""
 
     name = "aegis-4"
 
@@ -294,6 +308,9 @@ class DefenderBot(_HouseBot):
     FIRE_RANGE = 540.0
     SHIELD_PROJ_RANGE = 140.0  # shield up against projectiles inside this
     MELEE_SHIELD_RANGE = 110.0  # shield up when an enemy is this close
+    SHIELD_MIN_ENERGY = 25.0   # below this, drop the shield and punch back:
+                               # turtling on fumes means never firing, so go
+                               # down swinging and let it recharge
     DASH_ESCAPE_RANGE = 150.0
     WALL_MARGIN = 90.0
 
@@ -325,7 +342,10 @@ class DefenderBot(_HouseBot):
         move = self._wall_steer(state, move)
 
         shield = False
-        if target is not None:
+        # Counter-punch cycling: only turtle while the shield has real
+        # charge. On fumes, drop it and return fire instead of blocking
+        # forever without shooting (a shielded fighter cannot fire).
+        if target is not None and me["shield_energy"] > self.SHIELD_MIN_ENERGY:
             if _incoming_projectiles(state, me, self.SHIELD_PROJ_RANGE):
                 shield = True
             elif dist < self.MELEE_SHIELD_RANGE:
@@ -603,8 +623,9 @@ FIGHTERS = [
         "description": (
             "A conservative defender that holds ground near the arena center, "
             "raises its shield against incoming projectiles and point-blank "
-            "attackers, and punishes anyone who steps in by firing back "
-            "through its own shield."
+            "attackers, drops the shield to punish anyone who steps in, then "
+            "guards again. Every shot drops the shield for a tick — firing "
+            "through a permanently-up shield is not possible."
         ),
         "bot_class": DefenderBot,
     },

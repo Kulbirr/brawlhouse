@@ -126,10 +126,16 @@ class TestDeterminism(unittest.TestCase):
         json.dumps(snaps)  # must not raise
 
     def test_different_seed_may_differ(self):
+        # random-vs-random used to be the vehicle here, but two wandering
+        # random bots essentially never hit each other, so the assertion
+        # hinged on a single lucky 8-damage hit. Chaser-vs-random keeps the
+        # intent (seeds must affect outcomes) with a real fight.
         cfg1 = make_cfg(seed=1)
         cfg2 = make_cfg(seed=2)
-        bots1 = [("a", BUILTIN_BOTS["random"](1, 0)), ("b", BUILTIN_BOTS["random"](1, 1))]
-        bots2 = [("a", BUILTIN_BOTS["random"](2, 0)), ("b", BUILTIN_BOTS["random"](2, 1))]
+        bots1 = [("c", BUILTIN_BOTS["chaser"](1, 0)),
+                 ("r", BUILTIN_BOTS["random"](1, 1))]
+        bots2 = [("c", BUILTIN_BOTS["chaser"](2, 0)),
+                 ("r", BUILTIN_BOTS["random"](2, 1))]
         r1, _ = simulate(bots1, cfg1)
         r2, _ = simulate(bots2, cfg2)
         # Not a strict requirement, but with random bots seeds should matter.
@@ -170,6 +176,78 @@ class TestFaultTolerance(unittest.TestCase):
         result, _ = simulate(bots, cfg)
         self.assertEqual(result["ticks"], 30)
         self.assertTrue(any("benched" in n for n in result["notes"]))
+
+    def test_firing_drops_shield_for_the_tick(self):
+        """Loosing a shot drops the shield for the rest of the tick.
+
+        Regression test for the AEGIS-4 duel dominance (94% win rate):
+        firing through a permanently-up shield while blocking everything
+        made it nearly unbeatable 1v1. Now every shot is a moment of
+        vulnerability: a shielder that keeps firing takes hull damage.
+        """
+
+        class TurtleBot(FighterBot):
+            name = "turtle"
+
+            def decide(self, state):
+                return {"move": [0.0, 0.0], "aim": 0.0,
+                        "fire": True, "shield": True, "dash": False}
+
+        class GunnerBot(FighterBot):
+            name = "gunner"
+
+            def decide(self, state):
+                import math
+                me = state["fighter"]
+                foes = [e for e in state["enemies"] if e["alive"]]
+                e = foes[0]
+                aim = math.atan2(e["y"] - me["y"], e["x"] - me["x"])
+                return {"move": [0.0, 0.0], "aim": aim,
+                        "fire": True, "shield": False, "dash": False}
+
+        cfg = make_cfg(max_ticks=200)
+        battle = Battle([("turtle-1", TurtleBot()),
+                         ("gunner-2", GunnerBot())], cfg)
+        # 250 apart: projectiles (speed 50) take exactly 5 ticks to cross,
+        # the fire cooldown. Both bots fire on ticks 0, 5, 10, ... so the
+        # gunner's shots always land on a tick where the turtle just fired
+        # and dropped its shield -> hull damage, deterministically.
+        battle.fighters[0].x, battle.fighters[0].y = 100.0, 100.0
+        battle.fighters[1].x, battle.fighters[1].y = 100.0, 350.0
+        battle.step()
+        self.assertFalse(battle.fighters[0].shield_active,
+                         "firing must drop the shield for the tick")
+        for _ in range(199):
+            battle.step()
+        snap = battle.snapshot()
+        turtle = next(f for f in snap["fighters"] if f["id"] == "turtle-1")
+        self.assertLess(turtle["hp"], 100.0,
+                        "a shielder that keeps firing must take hull damage")
+
+    def test_unshielded_fighter_still_fires(self):
+        """Control for the shield rule: shield down -> aimed shots land."""
+
+        class GunnerBot(FighterBot):
+            name = "gunner"
+
+            def decide(self, state):
+                import math
+                me = state["fighter"]
+                foes = [e for e in state["enemies"] if e["alive"]]
+                e = min(foes, key=lambda x: (x["x"] - me["x"]) ** 2
+                       + (x["y"] - me["y"]) ** 2)
+                aim = math.atan2(e["y"] - me["y"], e["x"] - me["x"])
+                return {"move": [0.0, 0.0], "aim": aim,
+                        "fire": True, "shield": False, "dash": False}
+
+        cfg = make_cfg(max_ticks=120)
+        battle = Battle([("gunner-1", GunnerBot()),
+                         ("null-2", NullBot())], cfg)
+        for _ in range(120):
+            battle.step()
+        null = next(f for f in battle.snapshot()["fighters"]
+                    if f["id"] == "null-2")
+        self.assertLess(null["hp"], 100.0)
 
 
 if __name__ == "__main__":

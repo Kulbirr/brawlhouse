@@ -35,13 +35,13 @@ PRIVATE = sorted(PRIVATE_FIELDS)
 
 # ---------------------------------------------------------------- fixtures
 # Fixed seed: engine run of iron-1,hawk-2,aegis-4,jackal-5 gives a
-# deterministic non-draw result (winner hawk-2, 551 ticks). The test pins
+# deterministic non-draw result (winner iron-1). The test pins
 # the winner as a determinism regression net and computes payouts from the
 # recorded winner dynamically.
 FIGHTERS_4 = ["iron-1", "hawk-2", "aegis-4", "jackal-5"]
 SEED = 7
-EXPECTED_WINNER = "hawk-2"
-EXPECTED_ELIMINATION_ORDER = ["jackal-5", "iron-1", "aegis-4"]
+EXPECTED_WINNER = "iron-1"
+EXPECTED_ELIMINATION_ORDER = ["aegis-4", "jackal-5", "hawk-2"]
 
 HIRE_WALLET_1 = "E2E-HIRE-W1"
 HIRE_WALLET_2 = "E2E-HIRE-W2"

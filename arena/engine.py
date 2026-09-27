@@ -58,7 +58,8 @@ class _Fighter:
 
 
 class _Projectile:
-    __slots__ = ("id", "owner", "x", "y", "vx", "vy", "damage", "life")
+    __slots__ = ("id", "owner", "x", "y", "vx", "vy", "damage", "life",
+                 "_ox", "_oy")
 
     def __init__(self, pid: int, owner: str, x: float, y: float,
                  vx: float, vy: float, damage: float, life: int):
@@ -205,13 +206,34 @@ class Battle:
         return actions
 
     # ------------------------------------------------------------------ combat
-    def _find_hit(self, p: _Projectile) -> _Fighter | None:
-        """First alive fighter (other than the owner) within hit radius."""
+    @staticmethod
+    def _seg_dist(px, py, x0, y0, x1, y1):
+        """Distance from point (px, py) to the segment (x0,y0)-(x1,y1)."""
+        dx, dy = x1 - x0, y1 - y0
+        l2 = dx * dx + dy * dy
+        if l2 == 0:
+            return math.hypot(px - x0, py - y0)
+        t = max(0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / l2))
+        return math.hypot(px - (x0 + t * dx), py - (y0 + t * dy))
+
+    def _find_hit(self, p: _Projectile, x0: float | None = None,
+                  y0: float | None = None) -> _Fighter | None:
+        """First alive fighter (other than the owner) touched by the
+        projectile's swept path this tick.
+
+        Projectiles move up to ~50 units per tick but the hit radius is only
+        ~14, so an endpoint-only check lets shots tunnel clean over a
+        fighter (e.g. an exactly-aimed 700-range shot straddles its target
+        every time because of the 15-unit muzzle offset). The segment check
+        makes hits depend on aim, not on tick-phase luck.
+        """
+        if x0 is None:
+            x0, y0 = p.x, p.y
         hit_radius = self.cfg.fighter_radius + self.cfg.projectile_radius
         for f in self.fighters:
             if not f.alive or f.id == p.owner:
                 continue
-            if math.hypot(f.x - p.x, f.y - p.y) <= hit_radius:
+            if self._seg_dist(f.x, f.y, x0, y0, p.x, p.y) <= hit_radius:
                 return f
         return None
 
@@ -279,7 +301,12 @@ class Battle:
             f.x = min(max(f.x + f.vx * dt, r), cfg.arena_size - r)
             f.y = min(max(f.y + f.vy * dt, r), cfg.arena_size - r)
 
-        # 3. Firing.
+        # 3. Firing. Loosing a shot drops your shield for the rest of the
+        # tick: you cannot shoot and block in the same instant. Turtling is
+        # still strong, but every shot is a moment of vulnerability — a
+        # shielder that fires nonstop (the old AEGIS-4 exploit: 94% duel win
+        # rate from shooting through a permanently-up shield) now eats a
+        # share of the incoming fire too.
         for f in self.fighters:
             if not f.alive:
                 continue
@@ -302,10 +329,12 @@ class Battle:
                     self._resolve_hit(p, target)
                 else:
                     self.projectiles.append(p)
+                f.shield_active = False  # dropped the guard to loose the shot
                 f.fire_cd = cfg.fire_cooldown_ticks
 
         # 4. Projectiles: move, expire, hit walls, hit fighters.
         for p in self.projectiles:
+            p._ox, p._oy = p.x, p.y
             p.x += p.vx * dt
             p.y += p.vy * dt
             p.life -= 1
@@ -315,7 +344,7 @@ class Battle:
                 continue
             if not (0 <= p.x <= cfg.arena_size and 0 <= p.y <= cfg.arena_size):
                 continue  # died on wall
-            target = self._find_hit(p)
+            target = self._find_hit(p, p._ox, p._oy)
             if target is None:
                 survivors.append(p)
                 continue
