@@ -23,7 +23,7 @@
 
 import { Buffer } from 'buffer';
 import { Connection, Transaction } from '@solana/web3.js';
-import { api, ApiError, type HireRow, type BetRow } from './api';
+import { api, ApiError, type BetRow } from './api';
 
 export const SOLANA_RPC_URL =
   import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
@@ -106,66 +106,11 @@ export async function signAndSend(
 export interface LivePaymentResult {
   live: boolean;
   signature: string | null;
-  hire?: HireRow;
   bet?: BetRow;
 }
 
 export interface PaymentHooks {
   setPhase: (phase: PaymentPhase, message?: string) => void;
-}
-
-/**
- * Full live hire flow: initiate -> sign -> broadcast -> confirm.
- * If the initiate response has no transaction_base64 (mock mode), the
- * hire row is returned directly and no wallet interaction happens.
- */
-export async function payForHire(
-  battleId: string,
-  fighterId: string,
-  walletAddress: string,
-  signTransaction: SignTransactionFn,
-  hooks: PaymentHooks,
-): Promise<LivePaymentResult> {
-  hooks.setPhase('initiating');
-  let init: Record<string, unknown>;
-  try {
-    init = await api<Record<string, unknown>>(
-      `/api/battles/${encodeURIComponent(battleId)}/hire`,
-      { method: 'POST', body: JSON.stringify({ fighter_id: fighterId, wallet: walletAddress }) },
-    );
-  } catch (e) {
-    hooks.setPhase('error', friendlyError(e));
-    throw e;
-  }
-
-  if (!isLiveInitiate(init)) {
-    // Mock mode: backend recorded the hire directly.
-    hooks.setPhase('done');
-    return { live: false, signature: null, hire: init as unknown as HireRow };
-  }
-
-  const hireId = init.hire_id as number;
-  hooks.setPhase('awaiting-signature');
-  let signature: string;
-  try {
-    signature = await signAndSend(signTransaction, init.transaction_base64);
-  } catch (e) {
-    hooks.setPhase('error', friendlyError(e));
-    throw new Error(friendlyError(e));
-  }
-
-  hooks.setPhase('confirming');
-  try {
-    const row = await api<HireRow>(
-      `/api/battles/${encodeURIComponent(battleId)}/hire/confirm`,
-      { method: 'POST', body: JSON.stringify({ hire_id: hireId, signature }) },
-    );
-    hooks.setPhase('done');
-    return { live: true, signature, hire: row };
-  } catch (e) {
-    hooks.setPhase('error', friendlyError(e));
-    throw new Error(friendlyError(e));
-  }
 }
 
 /**

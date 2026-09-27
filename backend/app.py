@@ -61,20 +61,10 @@ class CreateBattleBody(BaseModel):
     playback_speed: float = Field(1.0, gt=0)
 
 
-class HireBody(BaseModel):
-    fighter_id: str
-    wallet: str = Field(..., min_length=1, max_length=128)
-
-
 class BetBody(BaseModel):
     fighter_id: str  # ENGINE id, e.g. "hawk-2" or "hawk-2#1"
     wallet: str = Field(default="", max_length=128)
     amount_sol: float  # validated manually -> 400 (not 422) on bad input
-
-
-class HireConfirmBody(BaseModel):
-    hire_id: int
-    signature: str = Field(..., min_length=1, max_length=128)
 
 
 class BetConfirmBody(BaseModel):
@@ -114,6 +104,11 @@ class QueueEnterBody(BaseModel):
 class QueueConfirmBody(BaseModel):
     entry_id: int
     signature: str = Field(..., min_length=1, max_length=128)
+
+
+class HireHouseBotBody(BaseModel):
+    house_bot_id: str = Field(..., min_length=1, max_length=32)
+    wallet: str = Field(..., min_length=1, max_length=128)
 
 
 # ---------------------------------------------------------------- app factory
@@ -406,110 +401,6 @@ def create_app(data_dir: str | Path | None = None,
             out["snapshots"] = db.get_snapshots(battle_id)
         return out
 
-    # ----------------------------------------------------------------- hires
-    @app.post("/api/battles/{battle_id}/hire", status_code=201)
-    def hire_fighter(battle_id: str, body: HireBody):
-        rec = db.get_battle(battle_id)
-        if rec is None:
-            raise HTTPException(404, "Battle not found")
-        if rec["status"] != "open":
-            raise HTTPException(
-                409, "Hiring is only open before the fight starts")
-        engine_ids = json.loads(rec["fighter_ids"])
-        registry_ids = json.loads(rec["registry_ids"])
-        if body.fighter_id in engine_ids:
-            engine_id = body.fighter_id
-            reg_id = registry_ids[engine_ids.index(body.fighter_id)]
-        elif body.fighter_id in registry_ids:
-            idx = registry_ids.index(body.fighter_id)
-            engine_id = engine_ids[idx]
-            reg_id = body.fighter_id
-        else:
-            raise HTTPException(400, f"Fighter {body.fighter_id!r} not in this battle")
-        wallet = body.wallet.strip()
-        # Strength-based pricing: this fighter's fee comes from its win rate,
-        # not from the admin panel.
-        fee_sol = hire_fee_for(reg_id)
-
-        if settings.get("hiring_live"):
-            # Live path: non-custodial user-signed payment. The server
-            # builds an UNSIGNED transfer (wallet -> treasury_wallet);
-            # the frontend has the wallet sign it, then POSTs the
-            # signature to /hire/confirm. Imported lazily so mock mode
-            # never needs solana/solders.
-            from backend import payments_live
-            try:
-                hire = payments_live.initiate_hire(
-                    db, settings, battle_id, engine_id, wallet, fee_sol)
-            except payments_live.PaymentNotConfigured as exc:
-                raise HTTPException(503, str(exc))
-            except payments_live.RpcError as exc:
-                raise HTTPException(503, str(exc))
-            except ValueError as exc:
-                raise HTTPException(400, str(exc))
-            if hire is None:
-                raise HTTPException(409, "Wallet already hired in this battle")
-            return {
-                "hire_id": hire["id"],
-                "payment_status": hire["payment_status"],
-                "transaction_base64": hire["unsigned_tx_base64"],
-                "wallet": hire["wallet"],
-                "treasury_wallet": hire["to"],
-                "amount_sol": hire["fee_sol"],
-            }
-
-        hire = db.create_hire(battle_id, engine_id, wallet, fee_sol)
-        if hire is None:
-            raise HTTPException(409, "Wallet already hired in this battle")
-        # Phase 5: every fee lands in the treasury ledger for the buyback bot.
-        db.record_fee_event(battle_id, "hire", hire["fee_sol"])
-        _announce_sponsor(battle_id, wallet, reg_id)
-        return hire
-
-    @app.post("/api/battles/{battle_id}/hire/confirm", status_code=200)
-    def confirm_hire(battle_id: str, body: HireConfirmBody):
-        """Live hire step 2: verify the user's signed payment onchain.
-
-        Only 'pending' hires (created by POST /hire with hiring_live on)
-        can be confirmed. On success the hire is marked paid and the fee
-        lands in the treasury ledger.
-        """
-        hire = db.get_hire(body.hire_id)
-        if hire is None or hire["battle_id"] != battle_id:
-            raise HTTPException(404, "Hire not found")
-        if hire["payment_status"] != "pending":
-            raise HTTPException(
-                409, f"Hire is already {hire['payment_status']}")
-        from backend import payments_live
-        try:
-            row = payments_live.confirm_hire_payment(
-                db, settings, hire, body.signature.strip())
-        except payments_live.PaymentNotConfigured as exc:
-            raise HTTPException(503, str(exc))
-        except payments_live.RpcError as exc:
-            raise HTTPException(503, str(exc))
-        except payments_live.ReplayDetected as exc:
-            raise HTTPException(409, str(exc))
-        except ValueError as exc:
-            raise HTTPException(400, str(exc))
-        db.record_fee_event(battle_id, "hire", row["fee_sol"])
-        # Announce the sponsor only once the on-chain payment confirms.
-        rec = db.get_battle(battle_id)
-        reg_id = row["fighter_id"]
-        if rec is not None:
-            engine_ids = json.loads(rec["fighter_ids"])
-            registry_ids = json.loads(rec["registry_ids"])
-            if row["fighter_id"] in engine_ids:
-                reg_id = registry_ids[engine_ids.index(row["fighter_id"])]
-        _announce_sponsor(battle_id, row["wallet"], reg_id)
-        return row
-
-    @app.get("/api/battles/{battle_id}/hires")
-    def list_hires(battle_id: str):
-        if db.get_battle(battle_id) is None:
-            raise HTTPException(404, "Battle not found")
-        return {"hires": db.list_hires(battle_id)}
-
     # ---------------------------------------------------------------- betting
     # Phase 5 parimutuel engine. Contract matches the Phase 4 BetsAPI
     # adapter exactly (see the header comment of frontend/app.js). Note:
@@ -656,20 +547,6 @@ def create_app(data_dir: str | Path | None = None,
             return reg.get("name") or reg_id
         return reg_id  # born FTs already carry their FT-XXXX display id
 
-    def _announce_sponsor(battle_id: str, wallet: str, reg_id: str) -> None:
-        """System chat message so every viewer sees who sponsored whom.
-
-        Posted straight to the DB (bypassing the 2s rate limit): the WS
-        chat drain forwards it to all connected viewers within a second.
-        Never raises — a failed announcement must not break the hire."""
-        try:
-            db.add_chat_message(
-                battle_id, "BRAWLHOUSE",
-                f"{_trunc_wallet(wallet)} is now the sponsor of "
-                f"{_fighter_display_name(reg_id)} for this match.")
-        except Exception:
-            pass
-
     @app.post("/api/battles/{battle_id}/chat", status_code=201)
     def post_chat(battle_id: str, body: ChatBody):
         if db.get_battle(battle_id) is None:
@@ -803,6 +680,55 @@ def create_app(data_dir: str | Path | None = None,
     @app.get("/api/ft/next-battle")
     def ft_next_battle():
         return ft_economy.next_battle_info(db, settings)
+
+    @app.get("/api/ft/hire-options")
+    def ft_hire_options():
+        """House bots available to hire for the next official battle.
+
+        Only house bots (never player-owned fighters). A wallet that
+        already has a fighter queued (or a hire open) cannot hire — hire
+        is the on-ramp for players without a fighter.
+        """
+        hired = {h["house_bot_id"] for h in db.list_open_house_hires()}
+        return {
+            "fighters": [
+                {**fighter_view(fid), "hire_fee_sol": hire_fee_for(fid),
+                 "hired": fid in hired}
+                for fid in HOUSE_BOT_IDS
+            ],
+        }
+
+    @app.post("/api/ft/hire", status_code=201)
+    def ft_hire(body: HireHouseBotBody):
+        """Hire a house bot for the next official battle (mock mode).
+
+        The bot enters under the hirer's wallet; if it wins, the prize
+        goes to the hirer. Live mode (hiring_live) to be wired like queue.
+        """
+        fee_sol = hire_fee_for(body.house_bot_id.strip().lower())
+        try:
+            hire = ft_economy.hire_house_bot(
+                db, settings, body.house_bot_id, body.wallet, fee_sol)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        return {"payment": "mock", "hire": hire}
+
+    @app.get("/api/ft/hires")
+    def ft_hires():
+        hires = db.list_open_house_hires()
+        out = []
+        for h in hires:
+            reg = next((f for f in FIGHTERS if f["id"] == h["house_bot_id"]),
+                       None)
+            out.append({
+                "id": h["id"],
+                "house_bot_id": h["house_bot_id"],
+                "name": (reg or {}).get("name", h["house_bot_id"]),
+                "hirer_wallet": h["hirer_wallet"],
+                "fee_sol": h["fee_sol"],
+                "created_at": h["created_at"],
+            })
+        return {"hires": out}
 
     @app.get("/api/ft/queue")
     def ft_queue():

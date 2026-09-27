@@ -86,6 +86,23 @@ CREATE TABLE IF NOT EXISTS hires (
 );
 CREATE INDEX IF NOT EXISTS idx_hires_battle ON hires (battle_id);
 
+-- Real hire (house bots only): a player without their own fighter pays to
+-- enter a house bot into the NEXT official battle under their wallet. If
+-- the hired bot wins, the prize goes to the hirer (not the treasury).
+-- Distinct from the legacy battle-scoped sponsorship hires above.
+CREATE TABLE IF NOT EXISTS house_hires (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    house_bot_id TEXT NOT NULL,          -- e.g. "iron-1"
+    hirer_wallet TEXT NOT NULL,
+    fee_sol REAL NOT NULL,
+    payment_status TEXT NOT NULL DEFAULT 'mock',  -- 'mock'|'pending'|'confirmed'
+    created_at TEXT NOT NULL,
+    battle_id TEXT,                       -- set when drawn into a battle
+    UNIQUE (house_bot_id, battle_id)      -- a bot fights once per battle
+);
+CREATE INDEX IF NOT EXISTS idx_house_hires_open ON house_hires (battle_id);
+CREATE INDEX IF NOT EXISTS idx_house_hires_wallet ON house_hires (hirer_wallet);
+
 -- Phase 5: parimutuel betting
 CREATE TABLE IF NOT EXISTS bets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -547,6 +564,78 @@ class Database:
     def list_hires(self, battle_id: str) -> list[dict[str, Any]]:
         return [self._row_dict(r) for r in self._q(
             "SELECT * FROM hires WHERE battle_id = ? ORDER BY created_at", (battle_id,))]
+
+    # ------------------------------------------------------- house hires
+    # Real hire: house bot entered into the next official battle for a hirer.
+    def create_house_hire(self, house_bot_id: str, hirer_wallet: str,
+                          fee_sol: float,
+                          payment_status: str = "mock") -> dict[str, Any] | None:
+        """Returns the hire row, or None if this bot is already hired for the
+        next battle (battle_id IS NULL) or the wallet already hired one."""
+        try:
+            with self._lock:
+                # One hire per wallet per upcoming battle; one hirer per bot.
+                existing = self._conn.execute(
+                    "SELECT 1 FROM house_hires WHERE battle_id IS NULL AND "
+                    "(house_bot_id = ? OR hirer_wallet = ?)",
+                    (house_bot_id, hirer_wallet),
+                ).fetchone()
+                if existing:
+                    return None
+                cur = self._conn.execute(
+                    """INSERT INTO house_hires (house_bot_id, hirer_wallet,
+                       fee_sol, payment_status, created_at, battle_id)
+                       VALUES (?, ?, ?, ?, ?, NULL)""",
+                    (house_bot_id, hirer_wallet, fee_sol, payment_status,
+                     _utcnow()),
+                )
+                hire_id = cur.lastrowid
+                self._conn.commit()
+        except sqlite3.IntegrityError:
+            return None
+        rows = self._q("SELECT * FROM house_hires WHERE id = ?", (hire_id,))
+        return self._row_dict(rows[0]) if rows else None
+
+    def list_open_house_hires(self) -> list[dict[str, Any]]:
+        """Hires not yet drawn into a battle (battle_id IS NULL)."""
+        return [self._row_dict(r) for r in self._q(
+            "SELECT * FROM house_hires WHERE battle_id IS NULL "
+            "ORDER BY created_at")]
+
+    def house_hire_open_for_wallet(self, wallet: str) -> bool:
+        rows = self._q(
+            "SELECT 1 FROM house_hires WHERE battle_id IS NULL AND "
+            "hirer_wallet = ?", (wallet,))
+        return bool(rows)
+
+    def mark_house_hires_drawn(self, hire_ids: list[int],
+                               battle_id: str) -> None:
+        if not hire_ids:
+            return
+        with self._lock:
+            self._conn.executemany(
+                "UPDATE house_hires SET battle_id = ? WHERE id = ?",
+                [(battle_id, hid) for hid in hire_ids],
+            )
+            self._conn.commit()
+
+    def get_house_hires_for_battle(self, battle_id: str) -> list[dict[str, Any]]:
+        return [self._row_dict(r) for r in self._q(
+            "SELECT * FROM house_hires WHERE battle_id = ?",
+            (battle_id,))]
+
+    def confirm_house_hire(self, hire_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE house_hires SET payment_status = 'confirmed' "
+                "WHERE id = ? AND payment_status = 'pending'",
+                (hire_id,),
+            )
+            self._conn.commit()
+            if cur.rowcount == 0:
+                return None
+        rows = self._q("SELECT * FROM house_hires WHERE id = ?", (hire_id,))
+        return self._row_dict(rows[0]) if rows else None
 
     # ------------------------------------------------------------------ bets
     def create_bet(self, battle_id: str, fighter_id: str, wallet: str,

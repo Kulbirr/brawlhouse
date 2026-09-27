@@ -21,7 +21,12 @@ ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
 @contextmanager
 def temp_app():
     with tempfile.TemporaryDirectory() as tmp:
-        yield create_app(data_dir=tmp)
+        app = create_app(data_dir=tmp)
+        # Keep the entry window open for tests that are not about it.
+        app.state.settings.update({
+            "entry_window_minutes":
+                int(app.state.settings.get("official_battle_interval_minutes"))})
+        yield app
 
 
 @contextmanager
@@ -253,42 +258,74 @@ class BackendTest(unittest.TestCase):
                 self.assertLessEqual(detail["result"]["ticks"], 50)
 
     # ---------------------------------------------------------------- hires
-    def test_hire_and_duplicate_rejected(self):
+    # Real hire: house bots only, pre-battle. The bot enters under the
+    # hirer's wallet; if it wins, the prize goes to the hirer.
+    def test_hire_house_bot(self):
         with betting_window(3), temp_app() as app:
             with TestClient(app) as c:
-                r = c.post("/api/battles", json={
-                    "fighter_ids": ["iron-1", "hawk-2"], "seed": 42})
-                battle_id = r.json()["id"]
-
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "iron-1", "wallet": "Wallet111"})
+                # Hire iron-1 for the next battle.
+                r = c.post("/api/ft/hire",
+                           json={"house_bot_id": "iron-1",
+                                 "wallet": "Wallet111"})
                 self.assertEqual(r.status_code, 201)
-                hire = r.json()
-                self.assertEqual(hire["fighter_id"], "iron-1")
-                self.assertEqual(hire["wallet"], "Wallet111")
+                hire = r.json()["hire"]
+                self.assertEqual(hire["house_bot_id"], "iron-1")
+                self.assertEqual(hire["hirer_wallet"], "Wallet111")
                 self.assertEqual(hire["payment_status"], "mock")
-                fee = c.get("/api/settings").json()["hire_fee_sol"]
-                self.assertEqual(hire["fee_sol"], fee)
+                self.assertGreater(hire["fee_sol"], 0)
 
-                # duplicate wallet in same battle -> 409
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "hawk-2", "wallet": "Wallet111"})
-                self.assertEqual(r.status_code, 409)
-                # different wallet is fine
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "hawk-2", "wallet": "Wallet222"})
-                self.assertEqual(r.status_code, 201)
-
-                r = c.get(f"/api/battles/{battle_id}/hires")
-                self.assertEqual(len(r.json()["hires"]), 2)
-
-                # unknown battle / unknown fighter
-                r = c.post("/api/battles/nope/hire",
-                           json={"fighter_id": "iron-1", "wallet": "W"})
-                self.assertEqual(r.status_code, 404)
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "nope", "wallet": "W"})
+                # Same bot can't be hired twice.
+                r = c.post("/api/ft/hire",
+                           json={"house_bot_id": "iron-1",
+                                 "wallet": "Wallet222"})
                 self.assertEqual(r.status_code, 400)
+
+                # Same wallet can't hire a second bot.
+                r = c.post("/api/ft/hire",
+                           json={"house_bot_id": "hawk-2",
+                                 "wallet": "Wallet111"})
+                self.assertEqual(r.status_code, 400)
+
+                # Unknown bot rejected.
+                r = c.post("/api/ft/hire",
+                           json={"house_bot_id": "nope",
+                                 "wallet": "Wallet333"})
+                self.assertEqual(r.status_code, 400)
+
+                # Hire options list shows iron-1 as hired.
+                r = c.get("/api/ft/hire-options")
+                opts = {f["id"]: f for f in r.json()["fighters"]}
+                self.assertTrue(opts["iron-1"]["hired"])
+                self.assertFalse(opts["hawk-2"]["hired"])
+                self.assertGreater(opts["hawk-2"]["hire_fee_sol"], 0)
+
+                # Open hires list.
+                r = c.get("/api/ft/hires")
+                self.assertEqual(len(r.json()["hires"]), 1)
+                self.assertEqual(r.json()["hires"][0]["house_bot_id"],
+                                 "iron-1")
+
+    def test_hire_blocked_if_fighter_queued(self):
+        """A wallet with a fighter queued cannot hire (hire is the on-ramp
+        for players without a fighter)."""
+        with betting_window(3), temp_app() as app:
+            with TestClient(app) as c:
+                # Born a fighter and queue it.
+                r = c.post("/api/ft/born/initiate",
+                           json={"wallet": "Wallet111", "name": "Testy",
+                                 "archetype": "iron-1", "color": "#a1b2c3"})
+                self.assertEqual(r.status_code, 201)
+                fid = r.json()["fighter"]["id"]
+                r = c.post("/api/ft/queue/enter",
+                           json={"fighter_id": fid, "wallet": "Wallet111"})
+                self.assertEqual(r.status_code, 201)
+                # Now hire is blocked.
+                r = c.post("/api/ft/hire",
+                           json={"house_bot_id": "hawk-2",
+                                 "wallet": "Wallet111"})
+                self.assertEqual(r.status_code, 400)
+                self.assertIn("already have a fighter queued",
+                              r.json()["detail"])
 
     # ------------------------------------------------------------ websocket
     def test_ws_replay_finished_battle(self):

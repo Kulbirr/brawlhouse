@@ -222,18 +222,47 @@ class QueueTest(unittest.TestCase):
         with temp_env() as (db, settings, tmp):
             row, _ = born_fighter(db, settings, tmp)
             db.enqueue_fighter(row["id"], "WALLET1", 0.02, 0.016, "pending")
-            drawn = ft_economy.draw_fighters(db, "duel",
-                                             rng=random.Random(1))
+            drawn, _hires = ft_economy.draw_fighters(db, "duel",
+                                                     rng=random.Random(1))
             self.assertTrue(all(d["registry_id"] in HOUSE_BOT_IDS
                                 for d in drawn))
 
     def test_draw_house_fill(self):
         with temp_env() as (db, settings, tmp):
-            drawn = ft_economy.draw_fighters(db, "royale",
-                                             rng=random.Random(2))
+            drawn, _hires = ft_economy.draw_fighters(db, "royale",
+                                                     rng=random.Random(2))
             self.assertEqual(len(drawn), 4)
             self.assertEqual(len({d["registry_id"] for d in drawn}), 4)
             self.assertTrue(all(d["owner_wallet"] is None for d in drawn))
+
+    def test_draw_hired_bots_get_priority(self):
+        """Hired house bots take guaranteed slots; the hirer is recorded."""
+        with temp_env() as (db, settings, tmp):
+            ft_economy.hire_house_bot(db, settings, "iron-1", "WALLET1", 0.05)
+            ft_economy.hire_house_bot(db, settings, "hawk-2", "WALLET2", 0.05)
+            drawn, hire_ids = ft_economy.draw_fighters(
+                db, "duel", rng=random.Random(7))
+            self.assertEqual(len(drawn), 2)
+            self.assertEqual(len(hire_ids), 2)
+            by_reg = {d["registry_id"]: d for d in drawn}
+            self.assertEqual(by_reg["iron-1"]["hired_by"], "WALLET1")
+            self.assertEqual(by_reg["iron-1"]["owner_wallet"], "WALLET1")
+            self.assertEqual(by_reg["hawk-2"]["hired_by"], "WALLET2")
+            # House fill must not duplicate a hired bot.
+            self.assertEqual(len({d["registry_id"] for d in drawn}), 2)
+
+    def test_hire_validation(self):
+        with temp_env() as (db, settings, tmp):
+            # Unknown bot.
+            with self.assertRaises(ValueError):
+                ft_economy.hire_house_bot(db, settings, "nope", "W1", 0.05)
+            # Player-owned fighter id is not a house bot.
+            row, _ = born_fighter(db, settings, tmp)
+            with self.assertRaises(ValueError):
+                ft_economy.hire_house_bot(db, settings, row["id"], "W1", 0.05)
+            # Empty wallet.
+            with self.assertRaises(ValueError):
+                ft_economy.hire_house_bot(db, settings, "iron-1", "", 0.05)
 
     def test_draw_longest_wait_priority(self):
         # Weighted single-slot draws: the fighter that waited ~2h should be
@@ -247,7 +276,7 @@ class QueueTest(unittest.TestCase):
                    ("2026-01-01T00:00:00+00:00", ea["id"]))
             firsts = []
             for t in range(200):
-                d = ft_economy.draw_fighters(
+                d, _h = ft_economy.draw_fighters(
                     db, "duel", rng=random.Random(t))
                 # duel draws both queued FTs (no house fill); the first
                 # pick reveals the weight winner.

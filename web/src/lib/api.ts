@@ -108,6 +108,26 @@ export interface NextBattle {
   queued_count: number;
 }
 
+export interface HireOption {
+  id: string;
+  name: string;
+  tagline: string;
+  hire_fee_sol: number;
+  hired: boolean;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface HouseHireRow {
+  id: number;
+  house_bot_id: string;
+  name: string;
+  hirer_wallet: string;
+  fee_sol: number;
+  created_at: string;
+}
+
 export interface LeaderboardRow {
   rank: number;
   fighter_id: string;

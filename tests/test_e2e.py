@@ -3,7 +3,7 @@
 One repeatable script that exercises the ENTIRE v1 money loop headlessly,
 against an isolated temp data dir (the real ``data/`` dir is never touched):
 
-  admin settings -> battle create -> hires (2 wallets) -> bets (3 wallets)
+  admin settings -> battle create -> bets (3 wallets)
   -> battle finish -> parimutuel settlement (hand-computed expectations)
   -> treasury fee ledger -> buyback cycle in-process (mock) -> public
   treasury dashboard -> frontend serving + admin-page privacy.
@@ -164,39 +164,6 @@ class EndToEndMoneyLoopTest(unittest.TestCase):
                 trace["battle_id"] = battle_id
                 assert_no_private(self, created, "POST /api/battles")
 
-                # -------------------------------------------------- 3. hires
-                hires = []
-                for wallet, fid in ((HIRE_WALLET_1, "iron-1"),
-                                    (HIRE_WALLET_2, "hawk-2")):
-                    r = c.post(f"/api/battles/{battle_id}/hire", json={
-                        "fighter_id": fid, "wallet": wallet})
-                    self.assertEqual(r.status_code, 201, r.text)
-                    hire = r.json()
-                    self.assertEqual(
-                        sorted(hire.keys()),
-                        ["battle_id", "created_at", "fee_sol", "fighter_id",
-                         "id", "payment_status", "wallet"])
-                    self.assertEqual(hire["battle_id"], battle_id)
-                    self.assertEqual(hire["fighter_id"], fid)
-                    self.assertEqual(hire["wallet"], wallet)
-                    # fee comes from settings, mock payment recorded
-                    self.assertEqual(hire["fee_sol"], HIRE_FEE)
-                    self.assertEqual(hire["payment_status"], "mock")
-                    hires.append(hire)
-                    assert_no_private(self, hire, "POST /api/battles//hire")
-                trace["hires"] = [
-                    (h["wallet"], h["fighter_id"], h["fee_sol"]) for h in hires]
-
-                # duplicate hire from the same wallet -> 409
-                r = c.post(f"/api/battles/{battle_id}/hire", json={
-                    "fighter_id": "aegis-4", "wallet": HIRE_WALLET_1})
-                self.assertEqual(r.status_code, 409, r.text)
-
-                r = c.get(f"/api/battles/{battle_id}/hires")
-                self.assertEqual(r.status_code, 200)
-                self.assertEqual(len(r.json()["hires"]), 2)
-                assert_no_private(self, r.json(), "GET /api/battles//hires")
-
                 # --------------------------------------------------- 4. bets
                 bets = []
                 for wallet, fid, amt in STAKES:
@@ -331,31 +298,22 @@ class EndToEndMoneyLoopTest(unittest.TestCase):
                 fees = c.get("/api/treasury/fees", headers=ADMIN_HEADERS)
                 self.assertEqual(fees.status_code, 200)
                 totals = fees.json()["totals"]
-                self.assertEqual(totals["hire_sol"], 2 * HIRE_FEE)
                 self.assertEqual(totals["betting_sol"], expected_cut)
-                self.assertEqual(totals["total_sol"],
-                                 2 * HIRE_FEE + expected_cut)
+                self.assertEqual(totals["total_sol"], expected_cut)
                 events = fees.json()["events"]
                 by_source = {}
                 for e in events:
                     by_source.setdefault(e["source"], []).append(e)
-                self.assertEqual(len(by_source["hire"]), 2)
                 self.assertEqual(len(by_source["betting"]), 1)
-                for e in by_source["hire"]:
-                    self.assertEqual(e["amount_sol"], HIRE_FEE)
-                    self.assertEqual(e["battle_id"], battle_id)
                 self.assertEqual(by_source["betting"][0]["amount_sol"],
                                  expected_cut)
                 trace["fee_events"] = {
-                    "hire": [e["amount_sol"] for e in by_source["hire"]],
                     "betting": [e["amount_sol"]
                                 for e in by_source["betting"]]}
 
                 # --------------------------------------- 6. buyback (mock)
-                new_fees = _r9(2 * HIRE_FEE + expected_cut)
-                self.assertEqual(new_fees, 0.8)
+                new_fees = _r9(expected_cut)
                 expected_sol_spent = _r9(new_fees * BUYBACK_PCT / 100.0)
-                self.assertEqual(expected_sol_spent, 0.4)
                 expected_tokens = expected_sol_spent * settings.get(
                     "buyback_mock_rate")
 

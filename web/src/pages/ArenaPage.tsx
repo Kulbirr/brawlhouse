@@ -15,7 +15,6 @@ import {
   type BattleSummary,
   type WsMessage,
   type WsFighter,
-  type HireRow,
   type PoolInfo,
   type ChatMessage,
 } from '../lib/api';
@@ -26,7 +25,6 @@ import { ArenaRenderer } from '../arena/renderer';
 import BattleQueue from '../components/BattleQueue';
 import LiveBets from '../components/LiveBets';
 import RecentEliminations from '../components/RecentEliminations';
-import HirePanel from '../components/HirePanel';
 import BettingPanel from '../components/BettingPanel';
 import ChatPanel from '../components/ChatPanel';
 
@@ -61,7 +59,6 @@ export default function ArenaPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const seqRef = useRef(0);
   const chatSeqRef = useRef(0);
-  const knownHires = useRef<Set<number>>(new Set());
   const prevSnapRef = useRef<WsFighter[] | null>(null);
   const incomingRef = useRef<{ fighters: WsFighter[] } | null>(null);
   const logStartRef = useRef<number>(Date.now());
@@ -94,7 +91,6 @@ export default function ArenaPage() {
   const [fighters, setFighters] = useState<WsFighter[]>([]);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [poolStart, setPoolStart] = useState<number | null>(null);
-  const [hires, setHires] = useState<HireRow[]>([]);
   const [combatLog, setCombatLog] = useState<CombatRow[]>([]);
   const [elims, setElims] = useState<ElimEvent[]>([]);
   const [tickerItems, setTickerItems] = useState<string[]>([]);
@@ -185,33 +181,6 @@ export default function ArenaPage() {
     }
   }, []);
 
-  const pollHires = useCallback(
-    async (id: string) => {
-      try {
-        const d = await api<{ hires: HireRow[] }>(
-          `/api/battles/${encodeURIComponent(id)}/hires`,
-        );
-        const list = d.hires || [];
-        setHires(list);
-        for (const h of list) {
-          if (!knownHires.current.has(h.id)) {
-            knownHires.current.add(h.id);
-            const hName = fighterName(regIdOf(h.fighter_id));
-            pushCombat(
-              `${hName} hired by ${h.wallet.slice(0, 4)}…${h.wallet.slice(-4)}`,
-              'HIRE',
-              'hire',
-            );
-            pushTicker(`${hName} hired`);
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-    },
-    [fighterName, pushCombat, pushTicker],
-  );
-
   const loadPool = useCallback(
     async (b: BattleSummary) => {
       if (b.exhibition) {
@@ -252,7 +221,6 @@ export default function ArenaPage() {
       }
       const r = rendererRef.current;
       if (r) r.reset();
-      knownHires.current = new Set();
       prevSnapRef.current = null;
       incomingRef.current = null;
       logStartRef.current = Date.now();
@@ -261,7 +229,6 @@ export default function ArenaPage() {
       setElims([]);
       setTickerItems([]);
       setFighters([]);
-      setHires([]);
       setPool(null);
       setPoolStart(null);
       setDone(false);
@@ -318,7 +285,6 @@ export default function ArenaPage() {
       pushTicker(
         `${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')} — battle started`,
       );
-      void pollHires(id);
       void loadPool(meta);
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -393,7 +359,7 @@ export default function ArenaPage() {
         if (wsRef.current === ws) wsRef.current = null;
       };
     },
-    [fighterName, pollHires, loadPool, pushCombat, pushTicker, refreshPicker, detectCombat, settings],
+    [fighterName, loadPool, pushCombat, pushTicker, refreshPicker, detectCombat, settings],
   );
 
   /* renderer lifecycle — combat visuals untouched */
@@ -481,12 +447,6 @@ export default function ArenaPage() {
     const t = setInterval(() => void refreshPicker(), 15000);
     return () => clearInterval(t);
   }, [refreshPicker]);
-
-  useEffect(() => {
-    if (!battleId || done) return;
-    const t = setInterval(() => void pollHires(battleId), 5000);
-    return () => clearInterval(t);
-  }, [battleId, done, pollHires]);
 
   /* pool polling for the stat cards */
   useEffect(() => {
@@ -745,15 +705,6 @@ export default function ArenaPage() {
         {/* ---------------- RIGHT ---------------- */}
         <div className="col-stack">
           <RecentEliminations battles={battles} />
-          <div className="panel">
-            <h3>Hire a fighter</h3>
-            <HirePanel
-              battle={battle}
-              done={done}
-              hires={hires}
-              onHired={() => battleId && pollHires(battleId)}
-            />
-          </div>
           <ChatPanel battleId={battleId || null} wsChat={wsChat} />
         </div>
       </div>

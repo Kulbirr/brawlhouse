@@ -178,18 +178,6 @@ class BettingApiTest(unittest.TestCase):
                 self.assertEqual(len(r.json()["bets"]), 2)
                 wait_finished(c, app, battle_id)
 
-    def test_duplicate_hire_rule_unchanged(self):
-        with betting_window(3), temp_app() as app:
-            with TestClient(app) as c:
-                battle_id = make_battle(c)
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "iron-1", "wallet": "W1"})
-                self.assertEqual(r.status_code, 201)
-                r = c.post(f"/api/battles/{battle_id}/hire",
-                           json={"fighter_id": "hawk-2", "wallet": "W1"})
-                self.assertEqual(r.status_code, 409)
-                wait_finished(c, app, battle_id)
-
     # ----------------------------------------------------------------- pool
     def test_pool_math_and_live_house_cut(self):
         with betting_window(3), temp_app() as app:
@@ -312,37 +300,7 @@ class BettingHireWindowTest(unittest.TestCase):
                 self.assertEqual(r.status_code, 400, r.text)
                 self.assertIn("before the fight starts", r.json()["detail"])
 
-    def test_hire_refused_once_fight_started(self):
-        with temp_app() as app:
-            with TestClient(app) as c:
-                db = app.state.db
-                self._row(db, "h-run", "running")
-                self._row(db, "h-fin", "finished")
-                for bid in ("h-run", "h-fin"):
-                    r = c.post(f"/api/battles/{bid}/hire", json={
-                        "fighter_id": "hawk-2", "wallet": "W"})
-                    self.assertEqual(r.status_code, 409, (bid, r.text))
-                    self.assertIn("before the fight starts",
-                                  r.json()["detail"])
-
-    def test_hire_announces_sponsor_in_chat(self):
-        with betting_window(3), temp_app() as app:
-            with TestClient(app) as c:
-                battle_id = make_battle(c)
-                wallet = "WalletSponsor123456789"
-                r = c.post(f"/api/battles/{battle_id}/hire", json={
-                    "fighter_id": "hawk-2", "wallet": wallet})
-                self.assertEqual(r.status_code, 201, r.text)
-                r = c.get(f"/api/battles/{battle_id}/chat")
-                self.assertEqual(r.status_code, 200)
-                msgs = r.json()["messages"]
-                ann = [m for m in msgs if m["wallet"] == "BRAWLHOUSE"]
-                self.assertEqual(len(ann), 1, msgs)
-                # truncated wallet + display name, in the user's words:
-                # "<addr> is now the sponsor of <fighter> for this match."
-                self.assertIn("Wall...6789", ann[0]["message"])
-                self.assertIn("HAWK-2", ann[0]["message"])
-                self.assertIn("for this match", ann[0]["message"])
+    # ------------------------------------------------------------------ pool
 
 
 class SettlementMathTest(unittest.TestCase):
@@ -489,86 +447,6 @@ class SettlementMathTest(unittest.TestCase):
         self.assertAlmostEqual(res["payouts"][1], 2.0, places=9)
         self.assertAlmostEqual(res["payouts"][2], 0.0, places=9)
         self.assertEqual(res["house_cut_sol"], 0.0)
-
-
-class TreasuryLedgerTest(unittest.TestCase):
-    def test_hire_fees_logged_and_totals(self):
-        with betting_window(3), temp_app() as app:
-            with TestClient(app) as c:
-                # admin auth enforced
-                r = c.get("/api/treasury/fees")
-                self.assertEqual(r.status_code, 401)
-                r = c.get("/api/treasury/fees",
-                          headers={"X-Admin-Token": "nope"})
-                self.assertEqual(r.status_code, 401)
-
-                battle_id = make_battle(c)
-                fee = c.get("/api/settings").json()["hire_fee_sol"]
-                c.post(f"/api/battles/{battle_id}/hire",
-                       json={"fighter_id": "iron-1", "wallet": "H1"})
-                c.post(f"/api/battles/{battle_id}/hire",
-                       json={"fighter_id": "hawk-2", "wallet": "H2"})
-
-                r = c.get("/api/treasury/fees", headers=ADMIN_HEADERS)
-                self.assertEqual(r.status_code, 200)
-                body = r.json()
-                totals = body["totals"]
-                self.assertAlmostEqual(totals["hire_sol"], 2 * fee, places=9)
-                self.assertEqual(totals["betting_sol"], 0.0)
-                self.assertAlmostEqual(totals["total_sol"], 2 * fee, places=9)
-                events = body["events"]
-                self.assertEqual(len(events), 2)
-                for e in events:
-                    self.assertEqual(e["source"], "hire")
-                    self.assertEqual(e["battle_id"], battle_id)
-                    self.assertAlmostEqual(e["amount_sol"], fee, places=9)
-                wait_finished(c, app, battle_id)
-
-    def test_betting_cut_combines_with_hire_fees(self):
-        with betting_window(3), temp_app() as app:
-            with TestClient(app) as c:
-                c.put("/api/admin/settings",
-                      json={"betting_house_cut_pct": 10.0},
-                      headers=ADMIN_HEADERS)
-                # NOTE: 30 ticks here used to race the bet placement below:
-                # the background battle could finish before the three bet
-                # POSTs landed, flaking with 400 ("betting is closed").
-                # 300 ticks keeps the test fast (~0.2s) while giving the
-                # bets an unlosable head start. No assertion changed.
-                c.put("/api/admin/settings", json={"fight_max_ticks": 300},
-                      headers=ADMIN_HEADERS)
-                battle_id = make_battle(c)
-                fee = c.get("/api/settings").json()["hire_fee_sol"]
-                c.post(f"/api/battles/{battle_id}/hire",
-                       json={"fighter_id": "iron-1", "wallet": "H1"})
-                # 5.0 total stakes -> cut will be 0.5 whatever the winner
-                for w, amt in (("WA", 2.0), ("WB", 2.0), ("WC", 1.0)):
-                    r = c.post(f"/api/battles/{battle_id}/bets", json={
-                        "fighter_id": "hawk-2", "wallet": w,
-                        "amount_sol": amt})
-                    self.assertEqual(r.status_code, 201)
-                wait_finished(c, app, battle_id)
-
-                detail = c.get(f"/api/battles/{battle_id}").json()
-                winner = detail["result"]["winner"]
-                draw = detail["result"]["draw"]
-                r = c.get("/api/treasury/fees", headers=ADMIN_HEADERS)
-                totals = r.json()["totals"]
-                self.assertAlmostEqual(totals["hire_sol"], fee, places=9)
-                if not draw:
-                    # hawk-2 may or may not have won; cut exists only if
-                    # the winner had bets on it
-                    s = app.state.db.get_settlement(battle_id)
-                    if s["status"] == "settled":
-                        self.assertAlmostEqual(totals["betting_sol"], 0.5,
-                                               places=9)
-                    else:
-                        self.assertEqual(totals["betting_sol"], 0.0)
-                else:
-                    self.assertEqual(totals["betting_sol"], 0.0)
-                self.assertAlmostEqual(
-                    totals["total_sol"],
-                    totals["hire_sol"] + totals["betting_sol"], places=9)
 
 
 class SettlementHookTest(unittest.TestCase):

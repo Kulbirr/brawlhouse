@@ -23,7 +23,12 @@ from backend.db import Database  # noqa: E402
 @contextmanager
 def temp_app():
     with tempfile.TemporaryDirectory() as tmp:
-        yield create_app(data_dir=tmp), Database(f"{tmp}/arena.db")
+        app = create_app(data_dir=tmp)
+        # Keep the entry window open for tests that are not about it.
+        app.state.settings.update({
+            "entry_window_minutes":
+                int(app.state.settings.get("official_battle_interval_minutes"))})
+        yield app, Database(f"{tmp}/arena.db")
 
 
 @contextmanager
@@ -113,18 +118,16 @@ class PricingTest(unittest.TestCase):
             for _ in range(9):
                 db.record_result("hawk-2", "loss")
             with TestClient(app) as c:
-                r = c.post("/api/battles", json={
-                    "fighter_ids": ["iron-1", "hawk-2"]})
-                self.assertEqual(r.status_code, 202)
-                battle_id = r.json()["id"]
                 fees = {f["id"]: f["hire_fee_sol"]
-                        for f in c.get("/api/fighters").json()["fighters"]}
+                        for f in c.get("/api/ft/hire-options").json()["fighters"]}
                 strong = c.post(
-                    f"/api/battles/{battle_id}/hire",
-                    json={"fighter_id": "iron-1", "wallet": "WalletAAA"}).json()
+                    "/api/ft/hire",
+                    json={"house_bot_id": "iron-1",
+                          "wallet": "WalletAAA"}).json()["hire"]
                 weak = c.post(
-                    f"/api/battles/{battle_id}/hire",
-                    json={"fighter_id": "hawk-2", "wallet": "WalletBBB"}).json()
+                    "/api/ft/hire",
+                    json={"house_bot_id": "hawk-2",
+                          "wallet": "WalletBBB"}).json()["hire"]
                 self.assertEqual(strong["fee_sol"], fees["iron-1"])
                 self.assertEqual(weak["fee_sol"], fees["hawk-2"])
                 self.assertGreater(strong["fee_sol"], weak["fee_sol"])

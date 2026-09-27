@@ -18,6 +18,7 @@ go negative because they are only ever incremented by real splits.
 
 from __future__ import annotations
 
+import json
 import random
 import sqlite3
 import time
@@ -250,21 +251,81 @@ def enter_queue(db, settings, fighter_id: str, wallet: str) -> dict:
     return activate_queue_entry(db, settings, entry)
 
 
+def hire_house_bot(db, settings, house_bot_id: str, wallet: str,
+                   fee_sol: float) -> dict:
+    """Hire a house bot for the next official battle (mock mode).
+
+    The bot enters under the hirer's wallet; if it wins, the prize goes to
+    the hirer. House bots only — player-owned fighters cannot be hired
+    (that's Phase 2 rentals). A wallet that already has a fighter queued
+    (or a hire open) cannot hire: hire is the on-ramp for players without
+    a fighter.
+    """
+    from arena.house_fighters import HOUSE_BOT_IDS
+    wallet = (wallet or "").strip()
+    if not wallet:
+        raise ValueError("wallet is required")
+    bot_id = (house_bot_id or "").strip().lower()
+    if bot_id not in HOUSE_BOT_IDS:
+        raise ValueError(f"Unknown house fighter: {house_bot_id!r}")
+    check_entry_window(settings)
+    # Hire is for players WITHOUT their own fighter in the queue.
+    for e in db.list_queued_entries():
+        if e["owner_wallet"] == wallet:
+            raise ValueError(
+                "You already have a fighter queued for the next battle")
+    if db.house_hire_open_for_wallet(wallet):
+        raise ValueError("You already hired a fighter for the next battle")
+    if fee_sol <= 0:
+        raise ValueError("hire fee must be positive")
+    hire = db.create_house_hire(bot_id, wallet, fee_sol, "mock")
+    if hire is None:
+        raise ValueError(
+            f"{bot_id} is already hired for the next battle")
+    # The hire fee is house revenue: lands in the treasury ledger for the
+    # buyback bot, like any other fee.
+    db.record_fee_event("hire", "hire", fee_sol)
+    return hire
+
+
 # --------------------------------------------------------------- the draw
 def draw_fighters(db, mode: str,
                   rng: random.Random | None = None) -> list[dict]:
     """Draw fighters for an official battle.
 
-    Weighted random sample of the paid queue: weight = 1 + minutes waited,
-    so the longest-waiting fighters are favored but the draw stays random.
-    Short queues are filled with house fighters (never paid, never ranked).
-    Returns [{registry_id, owner_wallet|None, entry_id|None, prize_share,
-    stat_mult}].
+    Hired house bots go first (guaranteed slots — the hirer paid for a
+    seat). Then a weighted random sample of the paid queue: weight = 1 +
+    minutes waited, so the longest-waiting fighters are favored but the
+    draw stays random. Short queues are filled with house fighters (never
+    paid, never ranked).
+    Returns ([{registry_id, owner_wallet|None, entry_id|None, prize_share,
+    stat_mult, hired_by|None}], [hire_ids drawn]). hired_by is the hirer
+    wallet for hired house bots (prize goes to them); None otherwise.
     """
     if mode not in ("duel", "royale"):
         raise ValueError(f"Unknown official mode: {mode!r}")
     rng = rng or random.Random()
     needed = 2 if mode == "duel" else 4
+
+    picked: list[dict] = []
+    hired_ids: list[int] = []
+
+    # Hired house bots: guaranteed slots, in hire order. Cap at `needed`
+    # (a duel only seats two).
+    for h in db.list_open_house_hires():
+        if len(picked) >= needed:
+            break
+        picked.append({
+            "registry_id": h["house_bot_id"],
+            "owner_wallet": h["hirer_wallet"],
+            "entry_id": None,
+            "prize_share": 0.0,
+            "stat_mult": 1.0,
+            "hired_by": h["hirer_wallet"],
+        })
+        hired_ids.append(h["id"])
+    # Stash the drawn hire ids for run_official_battle to mark.
+    picked_hired_ids = hired_ids
 
     now = time.time()
     candidates = []
@@ -283,7 +344,6 @@ def draw_fighters(db, mode: str,
         waited_min = max(0.0, (now - entered.timestamp()) / 60.0)
         candidates.append((e, f, 1.0 + waited_min))
 
-    picked: list[dict] = []
     pool = list(candidates)
     while pool and len(picked) < needed:
         weights = [w for _, _, w in pool]
@@ -295,20 +355,25 @@ def draw_fighters(db, mode: str,
             "entry_id": entry["id"],
             "prize_share": float(entry["prize_share_sol"] or 0.0),
             "stat_mult": float(fighter.get("stat_mult") or 1.0),
+            "hired_by": None,
         })
 
     # House fill: random distinct house fighters for the empty slots.
+    # Never pick a bot that's already hired for this battle.
+    hired_bots = {p["registry_id"] for p in picked if p.get("hired_by")}
     shortfall = needed - len(picked)
     if shortfall > 0:
-        for hid in rng.sample(HOUSE_BOT_IDS, shortfall):
+        available = [hid for hid in HOUSE_BOT_IDS if hid not in hired_bots]
+        for hid in rng.sample(available, min(shortfall, len(available))):
             picked.append({
                 "registry_id": hid,
                 "owner_wallet": None,
                 "entry_id": None,
                 "prize_share": 0.0,
                 "stat_mult": 1.0,
+                "hired_by": None,
             })
-    return picked
+    return picked, picked_hired_ids
 
 
 # ------------------------------------------------------- official battles
@@ -339,7 +404,7 @@ def run_official_battle(db, runner, settings, engine_cfg,
     season = ensure_active_season(db, settings)
     last_mode = db.kv_get("last_official_mode")
     mode = "royale" if last_mode == "duel" else "duel"
-    drawn = draw_fighters(db, mode, rng)
+    drawn, hire_ids = draw_fighters(db, mode, rng)
     registry_ids = [d["registry_id"] for d in drawn]
     stat_mults = {d["registry_id"]: d["stat_mult"] for d in drawn
                   if d["stat_mult"] != 1.0}
@@ -366,6 +431,13 @@ def run_official_battle(db, runner, settings, engine_cfg,
     db.kv_set(f"official_season:{live.id}", str(season["id"]))
     entry_ids = [d["entry_id"] for d in drawn if d["entry_id"] is not None]
     db.mark_entries_drawn(entry_ids, live.id)
+    # Mark hired bots as drawn; store the hire mapping on the battle so
+    # settlement can pay the hirer (not the treasury) on a hired-bot win.
+    db.mark_house_hires_drawn(hire_ids, live.id)
+    hired_map = {d["registry_id"]: d["hired_by"] for d in drawn
+                 if d.get("hired_by")}
+    if hired_map:
+        db.kv_set(f"official_hired:{live.id}", json.dumps(hired_map))
     return live
 
 
@@ -424,6 +496,14 @@ def _settle_official_battle(db, settings, live) -> dict:
     else:
         fighter = db.get_fighter(winner_registry) or {}
         owner = fighter.get("owner_wallet")
+        if not owner:
+            # Hired house bot? The prize goes to the hirer, not the treasury.
+            hired_raw = db.kv_get(f"official_hired:{live.id}")
+            try:
+                hired_map = json.loads(hired_raw) if hired_raw else {}
+            except (ValueError, TypeError):
+                hired_map = {}
+            owner = hired_map.get(winner_registry)
         if owner:
             if payouts_live:
                 try:
@@ -437,8 +517,8 @@ def _settle_official_battle(db, settings, live) -> dict:
                 live.id, pool, winner_registry, owner, pool,
                 status=status, destination="owner", paid_tx=tx)
         else:
-            # House fighter won: the prize stays in the treasury, where
-            # the buyback bot can allocate it like any other fee.
+            # Unhired house fighter won: the prize stays in the treasury,
+            # where the buyback bot can allocate it like any other fee.
             if pool > 0:
                 db.record_fee_event(live.id, "battle_prize", pool)
             prize = db.record_battle_prize(
