@@ -27,6 +27,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const name = settings?.project_name || 'BRAWLHOUSE';
   const ticker = settings?.token_ticker || 'BRAWL';
   const live = Boolean(settings && (settings.hiring_live || settings.betting_live));
+  const mint = (settings?.token_mint || '').trim();
   // "BRAWLHOUSE" renders fully bright (no dash tail)
   const dash = name.indexOf('-');
   const brandHead = dash > 0 ? name.slice(0, dash) : name;
@@ -55,6 +56,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="header-actions">
+          {mint && (
+            <button
+              className="ca-chip mono"
+              title={`Copy full CA: ${mint}`}
+              onClick={() => { void navigator.clipboard.writeText(mint); }}
+            >
+              CA {mint.slice(0, 4)}...{mint.slice(-4)}
+            </button>
+          )}
           <span className={`preview-flag${live ? ' live-flag' : ''}`}>
             {live ? 'LIVE' : 'SIMULATION'}
           </span>

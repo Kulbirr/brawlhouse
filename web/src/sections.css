@@ -702,6 +702,22 @@
   gap: 14px;
   margin-left: auto;
 }
+.ca-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--lime);
+  background: rgba(182, 255, 46, 0.07);
+  border: 1px solid rgba(182, 255, 46, 0.3);
+  border-radius: 20px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.ca-chip:hover {
+  background: rgba(182, 255, 46, 0.15);
+  border-color: var(--lime);
+}
 .preview-flag {
   color: #b8c0b5;
   font-family: var(--font-mono);
