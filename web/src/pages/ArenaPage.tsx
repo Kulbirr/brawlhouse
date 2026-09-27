@@ -19,7 +19,7 @@ import {
   type PoolInfo,
   type ChatMessage,
 } from '../lib/api';
-import { regIdOf, fmtSol, fighterColor } from '../lib/format';
+import { regIdOf, fmtSol, fighterColor, shortAddr } from '../lib/format';
 import { Countdown } from '../components/ft';
 import { useApp } from '../lib/store';
 import { ArenaRenderer } from '../arena/renderer';
@@ -710,6 +710,23 @@ export default function ArenaPage() {
                   : 'no battle selected'}
               </span>
             </div>
+            {(settings?.token_mint || '').trim() && (
+              <div className="stat-card">
+                <span className="stat-label">Token CA</span>
+                <span className="stat-value mono" style={{ fontSize: 15 }}>
+                  {shortAddr((settings?.token_mint || '').trim(), 6)}
+                </span>
+                <span className="stat-sub mono">
+                  <button
+                    className="table-action"
+                    style={{ padding: '2px 8px', fontSize: 10 }}
+                    onClick={() => { void navigator.clipboard.writeText((settings?.token_mint || '').trim()); }}
+                  >
+                    COPY
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="panel">
