@@ -44,6 +44,7 @@ export default function TreasuryPage() {
   const [error, setError] = useState('');
 
   const ticker = settings?.token_ticker || 'BRAWL';
+  const mint = (settings?.token_mint || '').trim();
   const animatedBurned = useCountUp(stats?.total_burned_tokens || 0);
 
   const load = useCallback(async (off: number) => {
@@ -111,6 +112,27 @@ export default function TreasuryPage() {
         <div>
           <strong>BUYBACK MACHINE</strong>
           <span>Platform fees route to scheduled ${ticker} buybacks and burns.</span>
+          {mint && (
+            <span className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <span>CA: <code style={{ color: 'var(--text)' }}>{shortAddr(mint, 6)}</code></span>
+              <button
+                className="table-action"
+                style={{ padding: '2px 8px', fontSize: 11 }}
+                onClick={() => { void navigator.clipboard.writeText(mint); }}
+              >
+                COPY
+              </button>
+              <a
+                href={`https://solscan.io/token/${mint}`}
+                target="_blank"
+                rel="noreferrer"
+                className="table-action"
+                style={{ padding: '2px 8px', fontSize: 11, textDecoration: 'none' }}
+              >
+                SOLSCAN
+              </a>
+            </span>
+          )}
           {bot && (
             <span className="muted small" style={{ display: 'block', marginTop: 4 }}>
               {bot.running ? 'Bot running' : 'Bot stopped'}
