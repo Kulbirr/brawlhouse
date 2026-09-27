@@ -114,8 +114,8 @@ export default function TreasuryPage() {
           <strong>BUYBACK MACHINE</strong>
           <span>Platform fees route to scheduled ${ticker} buybacks and burns.</span>
           {mint && (
-            <span className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-              <span>CA: <code style={{ color: 'var(--text)' }}>{shortAddr(mint, 6)}</code></span>
+            <span className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              <span>CA: <code style={{ color: 'var(--text)', wordBreak: 'break-all' }}>{mint}</code></span>
               <button
                 className="table-action"
                 style={{ padding: '2px 8px', fontSize: 11 }}

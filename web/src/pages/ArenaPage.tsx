@@ -19,7 +19,7 @@ import {
   type PoolInfo,
   type ChatMessage,
 } from '../lib/api';
-import { regIdOf, fmtSol, fighterColor, shortAddr } from '../lib/format';
+import { regIdOf, fmtSol, fighterColor } from '../lib/format';
 import { Countdown } from '../components/ft';
 import { useApp } from '../lib/store';
 import { ArenaRenderer } from '../arena/renderer';
@@ -711,10 +711,10 @@ export default function ArenaPage() {
               </span>
             </div>
             {(settings?.token_mint || '').trim() && (
-              <div className="stat-card">
+              <div className="stat-card" style={{ minWidth: 220 }}>
                 <span className="stat-label">Token CA</span>
-                <span className="stat-value mono" style={{ fontSize: 15 }}>
-                  {shortAddr((settings?.token_mint || '').trim(), 6)}
+                <span className="stat-value mono" style={{ fontSize: 11, wordBreak: 'break-all', lineHeight: 1.5 }}>
+                  {(settings?.token_mint || '').trim()}
                 </span>
                 <span className="stat-sub mono">
                   <button
