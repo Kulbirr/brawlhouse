@@ -1,4 +1,4 @@
-/* Battle history — reference table layout, real battle records, paginated. */
+/* Battle history: reference table layout, real battle records, paginated. */
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -81,7 +81,7 @@ export default function BattlesPage() {
                         )}
                         {b.exhibition && <span className="exhibition-badge">EXHIBITION</span>}
                       </td>
-                      <td>{b.ticks ?? '—'}</td>
+                      <td>{b.ticks ?? '-'}</td>
                       <td className="winner-cell">
                         {b.winner ? fighterName(regIdOf(b.winner)) : 'DRAW'}
                       </td>

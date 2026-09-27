@@ -1,4 +1,4 @@
-/* Queue: the next scheduled official battle — countdown, mode, and the
+/* Queue: the next scheduled official battle. Countdown, mode, and the
  * fighters already queued. Enter from My Fighters, or hire a house
  * fighter if you don't own one. */
 
@@ -83,7 +83,7 @@ export default function QueuePage() {
     <main className="section-page">
       <div className="section-heading">
         <h1>NEXT OFFICIAL BATTLE</h1>
-        <span>{next ? `${next.mode.toUpperCase()} — ${next.mode_size} FIGHTERS` : '…'}</span>
+        <span>{next ? `${next.mode.toUpperCase()}: ${next.mode_size} FIGHTERS` : '…'}</span>
       </div>
 
       <div className="queue-layout">
@@ -111,15 +111,14 @@ export default function QueuePage() {
                   <span>ENTRY WINDOW</span>
                   <strong className={next.entry_open ? 'window-open' : 'window-closed'}>
                     {next.entry_open
-                      ? `OPEN — ${next.entry_window_minutes} MIN`
+                      ? `OPEN: ${next.entry_window_minutes} MIN`
                       : 'CLOSED'}
                   </strong>
                 </div>
               </div>
               <p className="muted small">
                 Entries open {next.entry_window_minutes} minutes before each
-                battle. The draw is weighted random with longest-wait priority
-                — the longer your fighter waits, the better its odds. Short
+                battle. The draw is weighted random with longest-wait priority. The longer your fighter waits, the better its odds. Short
                 queues are filled with house fighters. Entry fee: 80% to the
                 battle prize pool, 20% to the season pool.
               </p>
@@ -145,7 +144,7 @@ export default function QueuePage() {
             <span>{hires.length} HIRED</span>
           </div>
           <p className="muted small" style={{ padding: '12px 16px 0' }}>
-            No fighter of your own? Hire a house bot — it enters the next
+            No fighter of your own? Hire a house bot. It enters the next
             battle under your wallet, and if it wins, the prize is yours.
             House bots only; player-owned fighters can't be hired.
           </p>
@@ -155,7 +154,7 @@ export default function QueuePage() {
             </div>
           ) : iHaveQueued ? (
             <p className="muted small" style={{ padding: '12px 16px' }}>
-              You already have a fighter queued — hire is for players without one.
+              You already have a fighter queued. Hiring is for players without one.
             </p>
           ) : iHaveHired ? (
             <div style={{ padding: '12px 16px' }}>
@@ -164,7 +163,7 @@ export default function QueuePage() {
                 .map((h) => (
                   <p key={h.id} className="muted small" style={{ margin: '0 0 8px' }}>
                     You've hired <strong style={{ color: '#fff' }}>{h.name}</strong>{' '}
-                    ({h.house_bot_id}) for {h.fee_sol} SOL — it fights under
+                    ({h.house_bot_id}) for {h.fee_sol} SOL. It fights under
                     your wallet in the next battle. Win and the prize is yours.
                     Good luck.
                   </p>
@@ -233,7 +232,7 @@ export default function QueuePage() {
           </div>
           {!queue.length ? (
             <p className="muted" style={{ padding: '16px' }}>
-              Queue is empty — this battle will be fought by house fighters.
+              Queue is empty. This battle will be fought by house fighters.
             </p>
           ) : (
             <div className="table-scroll">
@@ -250,7 +249,7 @@ export default function QueuePage() {
                   {queue.map((q) => (
                     <tr key={q.id}>
                       <td>{q.fighter_id}</td>
-                      <td>{q.fighter_name || '—'}</td>
+                      <td>{q.fighter_name || '-'}</td>
                       <td title={q.owner_wallet}>{shortWallet(q.owner_wallet)}</td>
                       <td className="muted small">
                         {new Date(q.entered_at).toLocaleTimeString()}

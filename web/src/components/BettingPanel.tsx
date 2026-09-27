@@ -63,14 +63,14 @@ export default function BettingPanel({
 
   if (!battle) return <p className="muted small">Select a battle to see betting.</p>;
   if (battle.exhibition) {
-    return <div className="exhibition-note">Exhibition — no betting on this battle.</div>;
+    return <div className="exhibition-note">Exhibition. No betting on this battle.</div>;
   }
 
   const total = pool?.total_sol || 0;
   const n = battle.fighter_ids.length;
   const sel = selected && battle.fighter_ids.includes(selected) ? selected : battle.fighter_ids[0];
   /* Bets are only accepted while the battle is 'open' (betting window
-   * before the engine runs) — never once the fight has started. */
+   * before the engine runs), never once the fight has started. */
   const open = battle.status === 'open' && !done;
   const busy = phase === 'initiating' || phase === 'awaiting-signature' ||
     phase === 'broadcasting' || phase === 'confirming';
@@ -139,7 +139,7 @@ export default function BettingPanel({
               <span className="bet-dot" style={{ background: color, color }} />
               <span>{fighterName(regIdOf(fid))}</span>
               <span className="odds">
-                {mult > 0 ? `×${mult.toFixed(2)}` : '—'}{' '}
+                {mult > 0 ? `×${mult.toFixed(2)}` : '-'}{' '}
                 <span className="muted">({(share * 100).toFixed(1)}%)</span>
               </span>
               <span
@@ -157,7 +157,7 @@ export default function BettingPanel({
         })}
       </div>
       <label className="field">
-        <span>Amount (SOL){maxBet ? ` — max ${fmtSol(maxBet)}` : ''}</span>
+        <span>Amount (SOL){maxBet ? ` (max ${fmtSol(maxBet)})` : ''}</span>
         <input
           type="number"
           min="0.01"

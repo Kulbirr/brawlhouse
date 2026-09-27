@@ -1,4 +1,4 @@
-/* Treasury: the buyback machine — reference layout, real ledger numbers. */
+/* Treasury: the buyback machine. Reference layout, real ledger numbers. */
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, type TreasuryStats, type BurnRecord } from '../lib/api';
@@ -137,12 +137,12 @@ export default function TreasuryPage() {
                     </td>
                     <td>
                       <span className="tx-link" title={b.buy_tx || ''}>
-                        {b.buy_tx ? shortAddr(b.buy_tx, 6) : '—'}
+                        {b.buy_tx ? shortAddr(b.buy_tx, 6) : '-'}
                       </span>
                     </td>
                     <td>
                       <span className="tx-link" title={b.burn_tx || ''}>
-                        {b.burn_tx ? shortAddr(b.burn_tx, 6) : '—'}
+                        {b.burn_tx ? shortAddr(b.burn_tx, 6) : '-'}
                       </span>
                     </td>
                     <td>
@@ -168,7 +168,7 @@ export default function TreasuryPage() {
       )}
       <div className="section-footnote">
         {stats?.simulated
-          ? 'PRACTICE MODE — THESE SOL AMOUNTS ARE SIMULATED. NO REAL FUNDS MOVE UNTIL LIVE PAYMENTS ARE ENABLED IN THE ADMIN CONSOLE.'
+          ? 'PRACTICE MODE: THESE SOL AMOUNTS ARE SIMULATED. NO REAL FUNDS MOVE UNTIL LIVE PAYMENTS ARE ENABLED IN THE ADMIN CONSOLE.'
           : 'PUBLIC LEDGER VALUES'}{' '}
         <i /> TOKEN USE IS NOT REQUIRED TO FIGHT OR BET
       </div>

@@ -2,6 +2,7 @@
  * rarity, ownership certificate, and queue entry. */
 
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { api, type FtFighter, type NextBattle } from '../lib/api';
@@ -76,7 +77,7 @@ export default function MyFightersPage() {
       ) : !fighters.length ? (
         <div className="panel">
           <p className="muted">
-            No fighters yet. <a href="#/born">Born your first FT</a> to enter
+            No fighters yet. <Link to="/born">Born your first FT</Link> to enter
             official battles and earn prize money.
           </p>
         </div>

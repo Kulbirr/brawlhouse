@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, WebSocket
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 from pydantic import BaseModel, Field
 
@@ -477,7 +477,7 @@ def create_app(data_dir: str | Path | None = None,
         """Live bet step 2: verify the user's signed payment onchain.
 
         Only 'pending' bets (created by POST /bets with betting_live on)
-        can be confirmed, and only while the battle is still running —
+        can be confirmed, and only while the battle is still running:
         confirming is what credits the bet into the parimutuel pool.
         """
         bet = db.get_bet(body.bet_id)
@@ -492,7 +492,7 @@ def create_app(data_dir: str | Path | None = None,
         if rec["status"] == "finished" or rec["exhibition"]:
             raise HTTPException(
                 400, "Betting is closed for this battle; the transfer "
-                     "is visible onchain — contact the team for a refund")
+                     "is visible onchain. Contact the team for a refund")
         from backend import payments_live
         try:
             return payments_live.confirm_bet_payment(
@@ -695,7 +695,7 @@ def create_app(data_dir: str | Path | None = None,
         """House bots available to hire for the next official battle.
 
         Only house bots (never player-owned fighters). A wallet that
-        already has a fighter queued (or a hire open) cannot hire — hire
+        already has a fighter queued (or a hire open) cannot hire. Hire
         is the on-ramp for players without a fighter.
         """
         hired = {h["house_bot_id"] for h in db.list_open_house_hires()}
@@ -1042,11 +1042,22 @@ def create_app(data_dir: str | Path | None = None,
             await _close_ws_quietly(ws)
 
     # --------------------------------------------------- frontend (Phase 4)
-    # Mount AFTER all API/WS routes so they take precedence: one server
-    # serves both the API and the static site. html=True serves index.html
-    # at "/" and for unknown non-API paths.
-    app.mount("/", StaticFiles(directory=PROJECT_ROOT / "web" / "dist", html=True),
-              name="frontend")
+    # SPA fallback for clean URLs (BrowserRouter): real static files are
+    # served directly; every other non-API path gets index.html so the
+    # client router can render it. Registered AFTER all API/WS routes.
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):
+        dist = (PROJECT_ROOT / "web" / "dist").resolve()
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404)
+        if full_path:
+            candidate = (dist / full_path).resolve()
+            if str(candidate).startswith(str(dist)) and candidate.is_file():
+                return FileResponse(candidate)
+        index = dist / "index.html"
+        if index.is_file():
+            return FileResponse(index)
+        raise HTTPException(status_code=404)
 
     # Official-battle scheduler object always exists (the background
     # thread only starts when enabled); the admin fallback endpoint

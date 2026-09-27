@@ -1,4 +1,4 @@
-/* Season: the 15-day championship — prize pool, countdown, leaderboard
+/* Season: the 15-day championship. Prize pool, countdown, leaderboard
  * (top 3 split 60/25/15), and recent payouts. */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -61,8 +61,8 @@ export default function SeasonPage() {
           </div>
           <div className="season-meta">
             <div>
-              <span>SEASON #{data?.season.id ?? '—'}</span>
-              <strong>{data ? `ENDS IN ${endsIn(data.season.ends_at)}` : '—'}</strong>
+              <span>SEASON #{data?.season.id ?? '-'}</span>
+              <strong>{data ? `ENDS IN ${endsIn(data.season.ends_at)}` : '-'}</strong>
             </div>
             <div>
               <span>TOP-3 SPLIT</span>

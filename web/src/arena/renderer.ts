@@ -359,7 +359,7 @@ export class ArenaRenderer {
     X: (x: number) => number, Y: (y: number) => number,
     k: number, now: number,
   ) {
-    // arena boundary — neon lime
+    // arena boundary: neon lime
     ctx.strokeStyle = 'rgba(182, 255, 46, 0.5)';
     ctx.lineWidth = 2;
     ctx.shadowColor = '#b6ff2e';

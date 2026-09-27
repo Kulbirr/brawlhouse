@@ -141,12 +141,12 @@ export default function BornPage() {
                 <strong>{fmtSol(fee)} SOL</strong>
               </div>
               <p className="muted small">
-                Rarity is rolled when you pay — Common 50%, Rare 30%, Epic 15%,
+                Rarity is rolled when you pay: Common 50%, Rare 30%, Epic 15%,
                 Legendary 5% (up to 1.25x HP and damage). Half the fee feeds the
                 season prize pool.
               </p>
               <button className="btn" disabled={!canBorn} onClick={submit}>
-                {busy ? 'BORN IN PROGRESS…' : `BORN FIGHTER — ${fmtSol(fee)} SOL`}
+                {busy ? 'BORN IN PROGRESS…' : `BORN FIGHTER: ${fmtSol(fee)} SOL`}
               </button>
               {msg && <p className={`phase-msg phase-${phase}`}>{msg}</p>}
             </>
@@ -184,7 +184,7 @@ export default function BornPage() {
         <span>LATEST FTs BORN</span>
       </div>
       {!births.length ? (
-        <p className="muted">No fighters born yet — be the first.</p>
+        <p className="muted">No fighters born yet. Be the first.</p>
       ) : (
         <div className="table-panel">
           <div className="table-scroll">

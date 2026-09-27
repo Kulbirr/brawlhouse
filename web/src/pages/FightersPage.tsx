@@ -1,4 +1,4 @@
-/* Fighter roster — reference-style cards, fed by the real registry API. */
+/* Fighter roster: reference-style cards, fed by the real registry API. */
 
 import type { CSSProperties } from 'react';
 import { useApp } from '../lib/store';
@@ -67,7 +67,7 @@ export default function FightersPage() {
                   </div>
                   <div className="win-rate">
                     <span>WIN RATE</span>
-                    <strong>{wr === null ? '—' : `${wr.toFixed(1)}%`}</strong>
+                    <strong>{wr === null ? '-' : `${wr.toFixed(1)}%`}</strong>
                   </div>
                 </div>
                 <div className="fighter-rate-track">

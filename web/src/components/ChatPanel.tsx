@@ -90,7 +90,7 @@ export default function ChatPanel({
       setInput('');
     } catch (e) {
       if (e instanceof ApiError && e.status === 429) {
-        setErr('Slow down — one message per 2 seconds.');
+        setErr('Slow down. One message per 2 seconds.');
       } else {
         setErr(e instanceof ApiError ? e.message2 : 'Failed to send.');
       }

@@ -4,7 +4,7 @@ Mock mode NEVER imports this module: every solana/solders import below is
 function-local, so the backend runs without chain libraries or network
 until the owner flips a live flag.
 
-Non-custodial model — the server holds NO private keys and signs nothing:
+Non-custodial model: the server holds NO private keys and signs nothing:
 
   1. initiate: the server builds an UNSIGNED SystemProgram.transfer
      transaction (user wallet -> treasury_wallet, exact lamports) with a

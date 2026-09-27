@@ -90,7 +90,7 @@ export default function BattleQueue({
   // 'open' = betting window before the engine starts; still the live card.
   // watchingLive covers the stream-lag case: the backend marks a battle
   // finished the instant its engine bursts, but this viewer is still
-  // watching the snapshot backlog until 'done' arrives — for them it is
+  // watching the snapshot backlog until 'done' arrives. For them it is
   // still live, so keep it in the live slot instead of Recent.
   const live = battles.filter(
     (b) =>

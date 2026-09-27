@@ -79,7 +79,7 @@ export default function ArenaPage() {
   const phaseRef = useRef<'pregame' | 'live' | 'replay'>('replay');
   /* True while the selected battle is a live stream we haven't seen end.
    * The backend marks battles finished the instant the engine bursts, but
-   * the viewer still watches the snapshot backlog — until 'done' arrives
+   * the viewer still watches the snapshot backlog until 'done' arrives
    * the battle is live for this viewer, and the queue should say so. */
   const [watchingLive, setWatchingLive] = useState(false);
   const [modeLabel, setModeLabel] = useState('');
@@ -280,17 +280,17 @@ export default function ArenaPage() {
         updateCountdown();
         countdownRef.current = window.setInterval(updateCountdown, 1000);
         setModeLabel('BETS OPEN');
-        setNote('Bets are open — the fight starts when the countdown hits zero.');
+        setNote('Bets are open. The fight starts when the countdown hits zero.');
       } else {
         setPregame(false);
       }
       pushCombat(
-        `Battle started — ${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')}${meta.exhibition ? ' (exhibition)' : ''}`,
+        `Battle started: ${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')}${meta.exhibition ? ' (exhibition)' : ''}`,
         'START',
         'start',
       );
       pushTicker(
-        `${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')} — battle started`,
+        `${meta.fighter_ids.map((f) => fighterName(regIdOf(f))).join(' vs ')}: battle started`,
       );
       void loadPool(meta);
 
@@ -318,9 +318,9 @@ export default function ArenaPage() {
           setModeLabel(isPregame ? 'BETS OPEN' : isLive ? 'STREAMING' : 'REPLAY');
           setNote(
             isPregame
-              ? 'Bets are open — the fight starts when the countdown hits zero.'
+              ? 'Bets are open. The fight starts when the countdown hits zero.'
               : isLive
-                ? 'Streaming live — ticks arrive as the engine runs them.'
+                ? 'Streaming live. Ticks arrive as the engine runs them.'
                 : 'Replay of a finished battle, streamed from stored snapshots.',
           );
         } else if (msg.type === 'snapshot') {
@@ -332,7 +332,7 @@ export default function ArenaPage() {
             setLive(true);
             setPregame(false);
             setModeLabel('STREAMING');
-            setNote('Streaming live — ticks arrive as the engine runs them.');
+            setNote('Streaming live. Ticks arrive as the engine runs them.');
           }
           detectCombat(prevSnapRef.current, msg.fighters, msg.tick);
           prevSnapRef.current = msg.fighters;
@@ -361,12 +361,12 @@ export default function ArenaPage() {
           setWinner({ regId: wReg, draw: !!res.draw });
           if (!res.draw && res.winner) rr?.spotlight(res.winner);
           pushCombat(
-            res.draw ? 'Battle over — DRAW' : `Battle over — ${wName} wins`,
+            res.draw ? 'Battle over: DRAW' : `Battle over: ${wName} wins`,
             'END',
             'end',
           );
           pushTicker(
-            res.draw ? 'Battle over — DRAW' : `${wName} wins the battle`,
+            res.draw ? 'Battle over: DRAW' : `${wName} wins the battle`,
           );
           void refreshPicker();
         }
@@ -378,7 +378,7 @@ export default function ArenaPage() {
     [fighterName, loadPool, pushCombat, pushTicker, refreshPicker, detectCombat, settings],
   );
 
-  /* renderer lifecycle — combat visuals untouched */
+  /* renderer lifecycle: combat visuals untouched */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -604,9 +604,9 @@ export default function ArenaPage() {
                 <div>
                   <p style={{ fontSize: 22, color: 'var(--lime, #b6ff2e)' }}>BETS OPEN</p>
                   <p className="mono" style={{ fontSize: 34 }}>
-                    {countdown !== null ? `${countdown}s` : '—'}
+                    {countdown !== null ? `${countdown}s` : '-'}
                   </p>
-                  <p>Place your bets — the fight starts when the countdown hits zero.</p>
+                  <p>Place your bets. The fight starts when the countdown hits zero.</p>
                 </div>
               </div>
             )}
@@ -633,7 +633,7 @@ export default function ArenaPage() {
           {/* status line + event ticker */}
           {battle && (
             <div className="arena-subline mono">
-              TICK {tick ?? '—'}
+              TICK {tick ?? '-'}
               {leader ? (
                 <> · <span style={{ color: fighterColor(regIdOf(leader.id)) }}>
                   {fighterName(regIdOf(leader.id))}
@@ -676,14 +676,14 @@ export default function ArenaPage() {
                       .map((fid) => {
                         const p = pool?.pools[fid] || 0;
                         const o = p > 0 && poolTotal > 0 ? poolTotal / p : 0;
-                        return `${fighterName(regIdOf(fid))} ${o > 0 ? o.toFixed(2) : '—'}`;
+                        return `${fighterName(regIdOf(fid))} ${o > 0 ? o.toFixed(2) : '-'}`;
                       })
                       .join(' · ')}
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="stat-value mono">—</span>
+                  <span className="stat-value mono">-</span>
                   <span className="stat-sub">no odds yet</span>
                 </>
               )}
@@ -691,13 +691,13 @@ export default function ArenaPage() {
             <div className="stat-card">
               <span className="stat-label">Fighters</span>
               <span className="stat-value mono">
-                {nFighters > 0 ? nFighters : '—'}
+                {nFighters > 0 ? nFighters : '-'}
               </span>
               <span className="stat-sub">{names || 'no battle selected'}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Ticks</span>
-              <span className="stat-value mono">{tick ?? '—'}</span>
+              <span className="stat-value mono">{tick ?? '-'}</span>
               <span className="stat-sub">
                 {battle
                   ? battle.exhibition

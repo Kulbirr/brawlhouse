@@ -55,7 +55,7 @@ export default function LeaderboardPage() {
                     <td>{f.draws}</td>
                     <td>
                       <div className="table-rate">
-                        <span>{wr === null ? '—' : `${wr.toFixed(1)}%`}</span>
+                        <span>{wr === null ? '-' : `${wr.toFixed(1)}%`}</span>
                         <i>
                           <b style={{ width: `${wr === null ? 0 : wr}%`, backgroundColor: color }} />
                         </i>

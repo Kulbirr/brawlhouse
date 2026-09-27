@@ -47,7 +47,7 @@ export function Countdown({ to, onDone }: { to: string; onDone?: () => void }) {
 }
 
 export function shortWallet(w: string | null): string {
-  if (!w) return '—';
+  if (!w) return '-';
   return w.length > 10 ? `${w.slice(0, 4)}…${w.slice(-4)}` : w;
 }
 
@@ -96,7 +96,7 @@ export function FtCard({
         </div>
         <div className="win-rate">
           <span>STAT MULT</span>
-          <strong>{f.stat_mult ? `${f.stat_mult.toFixed(2)}x` : '—'}</strong>
+          <strong>{f.stat_mult ? `${f.stat_mult.toFixed(2)}x` : '-'}</strong>
         </div>
       </div>
       <div className="fighter-price">

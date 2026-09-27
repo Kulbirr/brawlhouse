@@ -7,7 +7,7 @@
  *   (wallet signs + sends the tx)      ->
  *   POST /api/battles/{id}/hire/confirm { hire_id, signature } -> hire row
  *
- * LIVE BET — same pattern with bet_id:
+ * LIVE BET: same pattern with bet_id:
  *   POST /api/battles/{id}/bets        -> { bet_id, payment_status: "pending",
  *                                            transaction_base64, ... }
  *   POST /api/battles/{id}/bets/confirm { bet_id, signature } -> bet row
@@ -54,7 +54,7 @@ export interface PaymentStatus {
 export const PHASE_MESSAGE: Record<PaymentPhase, string> = {
   idle: '',
   initiating: 'Preparing payment…',
-  'awaiting-signature': 'Waiting for signature — approve the transfer in your wallet…',
+  'awaiting-signature': 'Waiting for signature. Approve the transfer in your wallet…',
   broadcasting: 'Sending transaction…',
   confirming: 'Verifying onchain…',
   done: 'Confirmed onchain.',

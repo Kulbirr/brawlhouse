@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
@@ -28,7 +28,7 @@ function BootError() {
       <div className="panel" style={{ borderColor: 'var(--red)' }}>
         <h3 style={{ color: 'var(--red)' }}>Backend unreachable</h3>
         <p className="muted small">
-          Could not reach the API — is the backend running? ({settingsError})
+          Could not reach the API. Is the backend running? ({settingsError})
         </p>
       </div>
     </div>
@@ -46,7 +46,7 @@ export default function App() {
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <AppProvider>
-            <HashRouter>
+            <BrowserRouter>
               <Layout>
                 <BootError />
                 <Routes>
@@ -66,7 +66,7 @@ export default function App() {
                   <Route path="*" element={<Navigate to="/arena" replace />} />
                 </Routes>
               </Layout>
-            </HashRouter>
+            </BrowserRouter>
           </AppProvider>
         </WalletModalProvider>
       </WalletProvider>

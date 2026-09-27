@@ -421,7 +421,7 @@ export default function AdminPage() {
           <span className="muted">, {rest.toFixed(3)} SOL unsplit remainder stays in the treasury</span>
         )}
         {rest < -0.0000005 && (
-          <span className="sanity-warn"> — splits exceed 100%; review the numbers</span>
+          <span className="sanity-warn">: splits exceed 100%; review the numbers</span>
         )}
         .
       </span>

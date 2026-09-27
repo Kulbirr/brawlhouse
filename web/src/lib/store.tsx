@@ -32,7 +32,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const s = await api<Settings>('/api/settings');
         setSettings(s);
-        document.title = `${s.project_name} — AI Combat Arena`;
+        document.title = `${s.project_name} | AI Combat Arena`;
       } catch (e) {
         setSettingsError(e instanceof Error ? e.message : 'Could not reach the API');
       }

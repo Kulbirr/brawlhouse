@@ -256,7 +256,7 @@ def hire_house_bot(db, settings, house_bot_id: str, wallet: str,
     """Hire a house bot for the next official battle (mock mode).
 
     The bot enters under the hirer's wallet; if it wins, the prize goes to
-    the hirer. House bots only — player-owned fighters cannot be hired
+    the hirer. House bots only. Player-owned fighters cannot be hired
     (that's Phase 2 rentals). A wallet that already has a fighter queued
     (or a hire open) cannot hire: hire is the on-ramp for players without
     a fighter.
@@ -293,7 +293,7 @@ def draw_fighters(db, mode: str,
                   rng: random.Random | None = None) -> list[dict]:
     """Draw fighters for an official battle.
 
-    Hired house bots go first (guaranteed slots — the hirer paid for a
+    Hired house bots go first (guaranteed slots; the hirer paid for a
     seat). Then a weighted random sample of the paid queue: weight = 1 +
     minutes waited, so the longest-waiting fighters are favored but the
     draw stays random. Short queues are filled with house fighters (never

@@ -153,7 +153,7 @@ class BattleRunner:
         # starts. Sleeps in short chunks so a shutdown is never stuck long.
         # Everything sits inside the try so the finally below ALWAYS runs:
         # a failure before the engine (betting wait, mark_started) used to
-        # skip it, leaving the battle in _live with finished unset — the
+        # skip it, leaving the battle in _live with finished unset. The
         # scheduler then waited on a dead battle forever and no new
         # official battle ever started.
         start = time.monotonic()

@@ -65,7 +65,7 @@ class OfficialScheduler(threading.Thread):
                 # on boot instead of idling until the next slot boundary.
                 self.tick(force=first)
             except Exception as exc:
-                # The scheduler must never die on a bad tick — but it must
+                # The scheduler must never die on a bad tick, but it must
                 # never go silent either.
                 self._record_tick_error(exc)
             first = False
@@ -97,7 +97,7 @@ class OfficialScheduler(threading.Thread):
         # No boundary gate: once the slot's boundary has passed and its
         # battle hasn't run, the next tick starts it. A delayed tick
         # (thread jitter, a swallowed error on the boundary tick) used to
-        # silently skip the whole slot — the queue countdown would hit 0
+        # silently skip the whole slot. The queue countdown would hit 0
         # and nothing would happen. Now the battle just starts a few
         # seconds late instead.
         live = ft_economy.run_official_battle(
