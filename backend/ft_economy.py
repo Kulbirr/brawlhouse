@@ -526,6 +526,49 @@ def _settle_official_battle(db, settings, live) -> dict:
                 status="paid" if payouts_live else "mock",
                 destination="treasury")
 
+    # Player notifications: hired-bot results go to the hirer, player-FT
+    # results go to the owner. Unhired house bots notify nobody.
+    try:
+        hired_raw = db.kv_get(f"official_hired:{live.id}")
+        hired_map = json.loads(hired_raw) if hired_raw else {}
+    except (ValueError, TypeError):
+        hired_map = {}
+    if not result.get("draw") and winner_registry:
+        for eng_id, reg_id in zip(engine_ids, registry_ids):
+            fighter = db.get_fighter(reg_id) or {}
+            name = fighter.get("name") or reg_id
+            won = (eng_id == winner_engine)
+            hirer = hired_map.get(reg_id)
+            if hirer:
+                if won:
+                    db.create_notification(
+                        hirer, "hire_win",
+                        f"{name} won you {pool} SOL",
+                        f"Your hired bot {name} won battle {live.id}. "
+                        f"The {pool} SOL prize is yours.",
+                        battle_id=live.id)
+                else:
+                    db.create_notification(
+                        hirer, "hire_loss",
+                        f"{name} was eliminated",
+                        f"Your hired bot {name} lost battle {live.id}. "
+                        f"Better luck next time.",
+                        battle_id=live.id)
+            elif fighter.get("owner_wallet"):
+                owner = fighter["owner_wallet"]
+                if won:
+                    db.create_notification(
+                        owner, "fighter_win",
+                        f"{name} won {pool} SOL",
+                        f"Your fighter {name} won battle {live.id}. "
+                        f"The {pool} SOL prize is yours.",
+                        battle_id=live.id)
+                else:
+                    db.create_notification(
+                        owner, "fighter_loss",
+                        f"{name} was eliminated",
+                        f"Your fighter {name} lost battle {live.id}.",
+                        battle_id=live.id)
     # Free the fighters for the next battle.
     for reg_id in registry_ids:
         fighter = db.get_fighter(reg_id)

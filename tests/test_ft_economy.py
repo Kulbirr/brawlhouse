@@ -461,6 +461,49 @@ class OfficialBattleTest(unittest.TestCase):
             self.assertAlmostEqual(
                 fees["by_source"].get("battle_prize", 0), 0.05)
 
+    def test_settlement_creates_notifications(self):
+        # Winner owner + loser owner get notified at settlement.
+        import json as _json
+        import uuid as _uuid
+        from datetime import datetime as _dt, timezone as _tz
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db, settings, runner, cfg = self._runner_env(tmp)
+            r1, _ = ft_economy.born_fighter(
+                db, settings, "WALLET_A", "Alpha", ARCHETYPE_IDS[0], "#a1b2c3",
+                data_dir=tmp)
+            r2, _ = ft_economy.born_fighter(
+                db, settings, "WALLET_B", "Beta", ARCHETYPE_IDS[1], "#d4e5f6",
+                data_dir=tmp)
+            bid = f"battle-test-{_uuid.uuid4().hex[:8]}"
+            db.create_battle({
+                "id": bid,
+                "created_at": _dt.now(_tz.utc).isoformat(),
+                "status": "finished",
+                "seed": 1,
+                "exhibition": 0,
+                "fighter_ids": _json.dumps([r1["id"], r2["id"]]),
+                "registry_ids": _json.dumps([r1["id"], r2["id"]]),
+                "playback_speed": 1.0,
+                "hire_fee_sol": 0.1,
+                "official": 1,
+                "mode": "duel",
+                "prize_pool_sol": 0.032,
+            })
+            live = SimpleNamespace(
+                id=bid,
+                result={"winner": r1["id"], "draw": False},
+                registry_ids=[r1["id"], r2["id"]],
+                engine_ids=[r1["id"], r2["id"]])
+            ft_economy._settle_official_battle(db, settings, live)
+            wa = db.list_notifications("WALLET_A")
+            wb = db.list_notifications("WALLET_B")
+            self.assertEqual(len(wa), 1)
+            self.assertEqual(wa[0]["kind"], "fighter_win")
+            self.assertIn("0.032", wa[0]["title"])
+            self.assertEqual(len(wb), 1)
+            self.assertEqual(wb[0]["kind"], "fighter_loss")
+
     def test_draw_prize_rolls_to_season_pool(self):
         import json as _json
         import uuid as _uuid

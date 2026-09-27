@@ -7,6 +7,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useApp } from '../lib/store';
 import TickerTape from './TickerTape';
+import NotificationBell from './NotificationBell';
 
 const NAV = [
   { to: '/arena', label: 'Arena' },
@@ -56,6 +57,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className={`preview-flag${live ? ' live-flag' : ''}`}>
             {live ? 'LIVE' : 'SIMULATION'}
           </span>
+          <NotificationBell />
           <WalletMultiButton />
         </div>
       </header>

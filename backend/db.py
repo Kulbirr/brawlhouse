@@ -103,6 +103,20 @@ CREATE TABLE IF NOT EXISTS house_hires (
 CREATE INDEX IF NOT EXISTS idx_house_hires_open ON house_hires (battle_id);
 CREATE INDEX IF NOT EXISTS idx_house_hires_wallet ON house_hires (hirer_wallet);
 
+-- Player notifications: hire results, fighter draw/results, season payouts.
+-- Written at settlement time; the frontend polls per-wallet.
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
+    kind TEXT NOT NULL,            -- 'hire_win'|'hire_loss'|'drawn'|'fighter_win'|'fighter_loss'|'season_payout'
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    battle_id TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT                    -- NULL = unread
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_wallet ON notifications (wallet, created_at);
+
 -- Phase 5: parimutuel betting
 CREATE TABLE IF NOT EXISTS bets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -636,6 +650,53 @@ class Database:
                 return None
         rows = self._q("SELECT * FROM house_hires WHERE id = ?", (hire_id,))
         return self._row_dict(rows[0]) if rows else None
+
+    # -------------------------------------------------------- notifications
+    def create_notification(self, wallet: str, kind: str, title: str,
+                            message: str,
+                            battle_id: str | None = None) -> dict[str, Any]:
+        """Write one player notification. Returns the row."""
+        now = _utcnow()
+        with self._lock:
+            cur = self._conn.execute(
+                """INSERT INTO notifications
+                   (wallet, kind, title, message, battle_id, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (wallet, kind, title, message, battle_id, now),
+            )
+            self._conn.commit()
+            nid = cur.lastrowid
+        rows = self._q("SELECT * FROM notifications WHERE id = ?", (nid,))
+        return self._row_dict(rows[0])
+
+    def list_notifications(self, wallet: str,
+                           limit: int = 50) -> list[dict[str, Any]]:
+        rows = self._q(
+            """SELECT * FROM notifications WHERE wallet = ?
+               ORDER BY created_at DESC, id DESC LIMIT ?""",
+            (wallet, limit),
+        )
+        return [self._row_dict(r) for r in rows]
+
+    def unread_notification_count(self, wallet: str) -> int:
+        rows = self._q(
+            "SELECT COUNT(*) AS n FROM notifications "
+            "WHERE wallet = ? AND read_at IS NULL",
+            (wallet,),
+        )
+        return int(rows[0]["n"]) if rows else 0
+
+    def mark_notifications_read(self, wallet: str) -> int:
+        """Mark all unread notifications read. Returns count marked."""
+        now = _utcnow()
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE notifications SET read_at = ? "
+                "WHERE wallet = ? AND read_at IS NULL",
+                (now, wallet),
+            )
+            self._conn.commit()
+            return cur.rowcount
 
     # ------------------------------------------------------------------ bets
     def create_bet(self, battle_id: str, fighter_id: str, wallet: str,

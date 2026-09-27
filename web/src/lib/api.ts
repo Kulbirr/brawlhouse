@@ -128,6 +128,16 @@ export interface HouseHireRow {
   created_at: string;
 }
 
+export interface NotificationRow {
+  id: number;
+  kind: string;
+  title: string;
+  message: string;
+  battle_id: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
 export interface LeaderboardRow {
   rank: number;
   fighter_id: string;

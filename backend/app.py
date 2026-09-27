@@ -111,6 +111,10 @@ class HireHouseBotBody(BaseModel):
     wallet: str = Field(..., min_length=1, max_length=128)
 
 
+class WalletBody(BaseModel):
+    wallet: str = Field(..., min_length=1, max_length=128)
+
+
 # ---------------------------------------------------------------- app factory
 def create_app(data_dir: str | Path | None = None,
                env_path: str | Path | None = None,
@@ -729,6 +733,22 @@ def create_app(data_dir: str | Path | None = None,
                 "created_at": h["created_at"],
             })
         return {"hires": out}
+
+    @app.get("/api/notifications")
+    def list_notifications(wallet: str = Query(...),
+                           limit: int = Query(50, le=100)):
+        """Player notification feed, newest first, with unread count."""
+        notes = db.list_notifications(wallet, limit=limit)
+        return {
+            "notifications": notes,
+            "unread": db.unread_notification_count(wallet),
+        }
+
+    @app.post("/api/notifications/read")
+    def mark_notifications_read(body: WalletBody):
+        """Mark all of a wallet's notifications read."""
+        marked = db.mark_notifications_read(body.wallet)
+        return {"marked": marked}
 
     @app.get("/api/ft/queue")
     def ft_queue():

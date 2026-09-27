@@ -327,6 +327,46 @@ class BackendTest(unittest.TestCase):
                 self.assertIn("already have a fighter queued",
                               r.json()["detail"])
 
+    # -------------------------------------------------------- notifications
+    def test_notification_crud(self):
+        with temp_app() as app:
+            db = app.state.db
+            # create
+            n = db.create_notification("W1", "hire_win", "Won!",
+                                       "You won 1 SOL", battle_id="b1")
+            self.assertEqual(n["wallet"], "W1")
+            self.assertIsNone(n["read_at"])
+            # list + unread count
+            notes = db.list_notifications("W1")
+            self.assertEqual(len(notes), 1)
+            self.assertEqual(db.unread_notification_count("W1"), 1)
+            self.assertEqual(db.unread_notification_count("W2"), 0)
+            # mark read
+            self.assertEqual(db.mark_notifications_read("W1"), 1)
+            self.assertEqual(db.unread_notification_count("W1"), 0)
+            notes = db.list_notifications("W1")
+            self.assertIsNotNone(notes[0]["read_at"])
+
+    def test_notification_api(self):
+        with temp_app() as app:
+            with TestClient(app) as c:
+                db = app.state.db
+                db.create_notification("WA", "hire_loss", "Lost", "Bot lost")
+                # list
+                r = c.get("/api/notifications", params={"wallet": "WA"})
+                self.assertEqual(r.status_code, 200)
+                d = r.json()
+                self.assertEqual(len(d["notifications"]), 1)
+                self.assertEqual(d["unread"], 1)
+                self.assertEqual(d["notifications"][0]["title"], "Lost")
+                # mark read
+                r = c.post("/api/notifications/read",
+                           json={"wallet": "WA"})
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(r.json()["marked"], 1)
+                r = c.get("/api/notifications", params={"wallet": "WA"})
+                self.assertEqual(r.json()["unread"], 0)
+
     # ------------------------------------------------------------ websocket
     def test_ws_replay_finished_battle(self):
         with temp_app() as app:
