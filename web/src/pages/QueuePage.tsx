@@ -158,9 +158,18 @@ export default function QueuePage() {
               You already have a fighter queued — hire is for players without one.
             </p>
           ) : iHaveHired ? (
-            <p className="muted small" style={{ padding: '12px 16px' }}>
-              You've hired for the next battle. Good luck.
-            </p>
+            <div style={{ padding: '12px 16px' }}>
+              {hires
+                .filter((h) => h.hirer_wallet === myWallet)
+                .map((h) => (
+                  <p key={h.id} className="muted small" style={{ margin: '0 0 8px' }}>
+                    You've hired <strong style={{ color: '#fff' }}>{h.name}</strong>{' '}
+                    ({h.house_bot_id}) for {h.fee_sol} SOL — it fights under
+                    your wallet in the next battle. Win and the prize is yours.
+                    Good luck.
+                  </p>
+                ))}
+            </div>
           ) : !next?.entry_open ? (
             <p className="muted small" style={{ padding: '12px 16px' }}>
               Hiring opens with the entry window, {next?.entry_window_minutes ?? 2} minutes
