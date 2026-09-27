@@ -18,6 +18,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import BattlesPage from './pages/BattlesPage';
 import TreasuryPage from './pages/TreasuryPage';
 import AdminPage from './pages/AdminPage';
+import GuidePage from './pages/GuidePage';
 
 function BootError() {
   const { settingsError } = useApp();
@@ -60,6 +61,7 @@ export default function App() {
                   <Route path="/leaderboard" element={<LeaderboardPage />} />
                   <Route path="/battles" element={<BattlesPage />} />
                   <Route path="/treasury" element={<TreasuryPage />} />
+                  <Route path="/guide" element={<GuidePage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="*" element={<Navigate to="/arena" replace />} />
                 </Routes>

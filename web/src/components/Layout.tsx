@@ -19,6 +19,7 @@ const NAV = [
   { to: '/leaderboard', label: 'Leaderboard' },
   { to: '/battles', label: 'Battles' },
   { to: '/treasury', label: 'Treasury' },
+  { to: '/guide', label: 'Guide' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
