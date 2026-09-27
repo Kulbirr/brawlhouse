@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, type TreasuryStats, type BurnRecord } from '../lib/api';
+import BuybackBotVisual from '../components/BuybackBotVisual';
 import { fmtSol, fmtTime, shortAddr } from '../lib/format';
 import { useApp } from '../lib/store';
 
@@ -149,6 +150,8 @@ export default function TreasuryPage() {
           <i /> {bot ? (bot.running ? (bot.buyback_live ? 'LIVE' : 'RUNNING (SIM)') : 'STOPPED') : 'SCHEDULED'}
         </span>
       </div>
+
+      <BuybackBotVisual ticker={ticker} />
 
       <div className="data-panel table-panel">
         <div className="table-headline">
