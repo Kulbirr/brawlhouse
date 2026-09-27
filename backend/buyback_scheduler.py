@@ -71,7 +71,7 @@ class BuybackScheduler(threading.Thread):
 
     def run(self):
         while not self._stop.is_set():
-            interval = int(self.settings.get("buyback_interval_minutes") or 60)
+            interval = int(self.settings.get("buyback_interval_minutes") or 30)
             if self._stop.wait(interval * 60):
                 break
             self.run_cycle_now()

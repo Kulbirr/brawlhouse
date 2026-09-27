@@ -285,6 +285,10 @@ export default function AdminPage() {
         payload[k] = fv;
       } else payload[k] = String(v ?? '');
     }
+    await saveSettingValues(payload);
+  };
+
+  const saveSettingValues = async (payload: SettingsMap) => {
     try {
       await adminApi('/api/admin/settings', {
         method: 'PUT',
@@ -325,16 +329,16 @@ export default function AdminPage() {
     }
   };
 
-  const onBuybackToggle = async () => {
+  const onBuybackToggle = async (next: boolean) => {
     try {
-      await saveSettings(['buyback_enabled']);
+      await saveSettingValues({ buyback_enabled: next });
       flash(
-        settings.buyback_enabled
+        next
           ? 'Buybacks enabled.'
           : 'Buybacks paused. Fees keep accumulating untouched.',
       );
     } catch {
-      /* saveSettings already flashed */
+      /* saveSettingValues already flashed */
     }
   };
 
@@ -470,8 +474,9 @@ export default function AdminPage() {
             className="table-action"
             style={{ marginLeft: 10 }}
             onClick={() => {
-              setSettings((s) => ({ ...s, buyback_enabled: !s.buyback_enabled }));
-              setTimeout(onBuybackToggle, 0);
+              const next = !settings.buyback_enabled;
+              setSettings((s) => ({ ...s, buyback_enabled: next }));
+              void onBuybackToggle(next);
             }}
           >
             {settings.buyback_enabled ? 'PAUSE BUYBACKS' : 'RESUME BUYBACKS'} <span>→</span>
@@ -524,8 +529,9 @@ export default function AdminPage() {
                 type="checkbox"
                 checked={!settings.buyback_enabled}
                 onChange={() => {
-                  setSettings((s) => ({ ...s, buyback_enabled: !s.buyback_enabled }));
-                  setTimeout(onBuybackToggle, 0);
+                  const next = !settings.buyback_enabled;
+                  setSettings((s) => ({ ...s, buyback_enabled: next }));
+                  void onBuybackToggle(next);
                 }}
               />
             </label>

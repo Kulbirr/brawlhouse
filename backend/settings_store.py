@@ -36,7 +36,7 @@ FIELDS: dict[str, tuple[str, type, Any]] = {
     "betting_window_sec": ("ARENA_BETTING_WINDOW_SEC", int, 60),
     "buyback_pct": ("ARENA_BUYBACK_PCT", float, 50.0),
     "team_pct": ("ARENA_TEAM_PCT", float, 50.0),
-    "buyback_interval_minutes": ("ARENA_BUYBACK_INTERVAL_MINUTES", int, 60),
+    "buyback_interval_minutes": ("ARENA_BUYBACK_INTERVAL_MINUTES", int, 30),
     "buyback_enabled": ("ARENA_BUYBACK_ENABLED", bool, True),
     # Phase 6: buyback bot. buyback_live defaults to mock mode (false):
     # zero network calls, swaps simulated at buyback_mock_rate, burns
