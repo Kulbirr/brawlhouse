@@ -51,7 +51,7 @@ export default function QueuePage() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 10000);
+    const t = setInterval(load, 3000);
     return () => clearInterval(t);
   }, [load]);
 
